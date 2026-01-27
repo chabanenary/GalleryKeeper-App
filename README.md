@@ -118,6 +118,6 @@ This is an Android rule: any app doing continuous background work must show a no
 
 ## ScreenShots
 
-![Capture 1](app/src/main/assets/capture_1_ok.png)
+![Capture 1](app/src/main/assets/capture1_ok.png)
 
 ![Monitoring](app/src/main/assets/capture_monitor.png)

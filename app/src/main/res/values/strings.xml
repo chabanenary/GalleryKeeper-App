@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GalleryKeeper</string>
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="welcome_message">Welcome to GalleryKeeper</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="login_button_text">Login</string>
+    <string name="forget_password">Forget Password?</string>
+    <string name="or_text">OR</string>
+    <string name="create_account_text_button">Create Account</string>
+    <string name="description_application_text" formatted="false">Welcome to the GalleryKeeper app, designed to automatically organize sensitive photos in your gallery. Using intelligent classification, it identifies sensitive images and instantly sorts them into dedicated folders directly within your gallery. With your privacy as its top priority, the app never saves any photos or personal data, either to its own storage or online. All processing is done offline: your content always remains on your device, under your exclusive control.\n\n
+        This solution can also be combined with photo folder locking apps or utilities, providing an additional layer of protection for your sensitive content.</string>
+    <string name="info_application_text">GalleryKeeper lets you automatically organize your photos in the gallery by moving them into dedicated folders based on selected categories.\n No photos are deleted or moved outside the gallery.\n The application works entirely offline.</string>
+    <string name="ok_button_text">OK</string>
+    <string name="tag_choice_text">Choose the type of content you want to monitor in your photo gallery</string>
+    <string name="nude_tag">Nude</string>
+    <string name="children_tag">Children</string>
+    <string name="credit_card_tag">Credit Card</string>
+    <string name="identity_document_tag">Identity Document</string>
+    <string name="monitor_button_text">Monitor</string>
+    <string name="scan_button_text">Scan</string>
+    <string name="monitor_stop_button_text">Stop Monitor</string>
+    <string name="scan_stop_button_text">Stop Scan</string>
+    <string name="close_button_text">Close</string>
+    <string name="setting_icon_description">Manage Settings</string>
+    <string name="info_icon_description">Application Information</string>
+    <string name="enter_email">Please enter your email</string>
+    <string name="enter_password">Please enter your password</string>
+    <string name="email_error">Email must be at least 5 characters long</string>
+    <string name="password_error">Password must be at least 5 characters long</string>
+    <string name="empty_fields_error">Please fill in all fields</string>
+    <string name="account_creation_succeeded">Account creation succeeded</string>
+    <string name="connection_succeeded">Connection succeeded</string>
+    <string name="connection_failed">Connection failed</string>
+    <string name="email_already_exists">Email already exists</string>
+    <string name="passwords_do_not_match">Passwords do not match</string>
+    <string name="email_reset_message">Reset Email sent</string>
+    <string name="dialog_photo_folder">photo folder creation</string>
+    <string name="dialog_photo_folder_cancel">No, maybe later</string>
+    <string name="dialog_photo_folder_text1">a folder named</string>
+    <string name="dialog_photo_folder_text2">will be created in the photo gallery, do you want to rename it?</string>
+    <string name="dialog_photo_folder_name_change">Photo folder name change</string>
+    <string name="dialog_photo_folder_name_change_cancel">No, cancel</string>
+    <string name="dialog_photo_folder_name_change_text1">The photo folder for tag </string>
+    <string name="dialog_photo_folder_name_change_text2">will be renamed in the photo gallery, do you want to proceed?</string>
+    <string name="dialog_define_folder_name">Yes, set folder name</string>
+    <string name="dialog_define_folder_name_title">Folder name for</string>
+    <string name="dialog_define_folder_name_text">Please enter the folder name to associate with this tag:</string>
+    <string name="dialog_define_folder_name_cancel">Cancel</string>
+    <string name="dialog_define_folder_name_suggestion">_pict</string>
+    <string name="error_text">Error</string>
+    <string name="top_background">Top Background</string>
+
+    <!-- Toasts - PhotoFolderManager (pre-Q creation etc.) -->
+    <string name="toast_pre_q_dir_creation">Creating folder (pre-Q).</string>
+    <string name="toast_pre_q_dir_creation_failed">Failed to create folder (pre-Q).</string>
+    <string name="toast_mediastore_entry_creation_failed">Failed to create MediaStore entry.</string>
+    <string name="toast_open_output_stream_error">Error opening output stream for image.</string>
+    <string name="toast_folder_created_with_name">Folder "%1$s" created.</string>
+    <string name="toast_placeholder_write_error">Error writing placeholder image.</string>
+    <string name="toast_folder_creation_error">Error creating folder.</string>
+
+    <!-- Toasts - MonitorPhotoFragment -->
+    <string name="toast_tag_added_to_db">Tag added to database.</string>
+    <string name="toast_folder_name_empty">Folder name cannot be empty.</string>
+    <string name="toast_folder_name_change_cancelled">Folder name change cancelled.</string>
+    <string name="toast_folder_name_unchanged_for_tag">Folder name for tag %1$s is unchanged.</string>
+
+    <!-- Generic dialog labels -->
+    <string name="yes_text">Yes</string>
+    <string name="no_text">No</string>
+
+    <!-- Setup/Info dialogs -->
+    <string name="dialog_title_setup_complete">Setup complete</string>
+    <string name="dialog_message_proceed_scan_for_tag">You can now proceed to scan photos for the tag "%1$s".</string>
+
+    <string name="dialog_title_folder_rename_done">Folder rename completed</string>
+    <string name="dialog_message_folder_rename_done">The photo folder for tag %1$s will be renamed from %2$s to %3$s, and you will be able to proceed to scan photos for the tag %1$s.</string>
+
+    <string name="dialog_title_tag_not_selected">Tag not selected</string>
+    <string name="dialog_message_select_tag_first">You must first select the tag %1$s before you can configure it.</string>
+    <string name="action_scan">Scan</string>
+    <string name="action_monitor">Monitor</string>
+    <string name="dialog_title_confirmation">Confirmation</string>
+    <string name="dialog_message_start_action">Do you really want to start %1$s?</string>
+    <string name="dialog_message_stop_action">Do you really want to stop %1$s?</string>
+
+    <!-- Permission dialog (settings redirection) -->
+    <string name="dialog_title_permission_needed">Permission required for GalleryKeeper</string>
+    <string name="dialog_message_permission_needed">You must grant the necessary permissions to access photos from the app settings.</string>
+    <string name="go_to_settings">Go to settings</string>
+
+    <!-- Remove monitoring / delete or rename folder -->
+    <string name="dialog_title_remove_monitoring">Stop monitoring</string>
+    <string name="dialog_message_remove_monitoring">Monitoring for the tag has been removed.\nThe associated folder "%1$s" must be deleted (all photos will be lost) or renamed.</string>
+    <string name="delete_text">Delete</string>
+    <string name="rename_text">Rename</string>
+
+    <string name="dialog_title_confirm_delete">Confirm deletion</string>
+    <string name="dialog_message_confirm_delete">Are you sure you want to delete the folder "%1$s" and all its photos?</string>
+    <string name="yes_delete">Yes, delete</string>
+
+    <string name="rename_folder_for_tag_title">Rename folder for %1$s</string>
+
+    <!-- Rename after permission toasts -->
+    <string name="toast_rename_success_after_permission">Folder renamed successfully (after permission).</string>
+    <string name="toast_some_files_not_moved_after_permission">Some files could not be moved (after permission).</string>
+    <string name="toast_permission_denied_rename_folder">Permission denied to rename the folder.</string>
+</resources>

@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GalleryKeeper</string>
+    <string name="hello_blank_fragment">Salut fragment vide</string>
+    <string name="welcome_message">Bienvenue dans GalleryKeeper</string>
+    <string name="email">Email</string>
+    <string name="password">Mot de passe</string>
+    <string name="login_button_text">Se connecter</string>
+    <string name="forget_password">Mot de passe oublié ?</string>
+    <string name="or_text">OU</string>
+    <string name="create_account_text_button">Créer un compte</string>
+    <string name="description_application_text" formatted="false">Bienvenue dans l’application GalleryKeeper qui vous servira à organiser automatiquement les photos sensibles présentes dans votre galerie. Grâce à une classification intelligente, elle identifie les images délicates et les range instantanément dans des dossiers dédiés, directement au sein de votre galerie.\n\nRespectueuse de votre vie privée avant tout, l’application ne sauvegarde jamais aucune photo, ni aucune donnée personnelle, que ce soit dans son propre espace ou en ligne. Tout le traitement s’effectue entièrement hors connexion : vos contenus restent toujours sur votre appareil, sous votre contrôle exclusif.\n\nCette solution peut également être combinée avec des applications ou utilitaires de verrouillage de dossiers photos, offrant ainsi une couche de protection supplémentaire pour vos contenus sensibles.</string>
+    <string name="info_application_text">GalleryKeeper vous permet de classer automatiquement vos photos dans la galerie en déplaçant les photos dans les dossiers dédiés dans la galerie selon les items sélectionnés.\n Aucune photo n’est supprimée ou placée en dehors de la galerie photos.\n L’application fonctionne entièrement hors connexion.</string>
+    <string name="ok_button_text">OK</string>
+    <string name="tag_choice_text">Choisissez le type de contenu que vous souhaitez surveiller dans votre galerie photo</string>
+    <string name="nude_tag">Nu</string>
+    <string name="children_tag">Enfants</string>
+    <string name="credit_card_tag">Carte de crédit</string>
+    <string name="identity_document_tag">Document d\'identité</string>
+    <string name="monitor_button_text">Surveiller</string>
+    <string name="scan_button_text">Scanner</string>
+    <string name="monitor_stop_button_text">Stop Surveillance</string>
+    <string name="scan_stop_button_text">Stop Scan</string>
+    <string name="close_button_text">Fermer</string>
+    <string name="setting_icon_description">Gérer les paramètres</string>
+    <string name="info_icon_description">Informations sur l\'application</string>
+    <string name="enter_email">Veuillez entrer votre email</string>
+    <string name="enter_password">Veuillez entrer votre mot de passe</string>
+    <string name="email_error">L\'email doit contenir au moins 5 caractères</string>
+    <string name="password_error">Le mot de passe doit contenir au moins 5 caractères</string>
+    <string name="empty_fields_error">Veuillez remplir tous les champs</string>
+    <string name="account_creation_succeeded">Compte créé avec succès</string>
+    <string name="connection_succeeded">Connexion réussie</string>
+    <string name="connection_failed">Échec de la connexion</string>
+    <string name="email_already_exists">L\'email existe déjà</string>
+    <string name="passwords_do_not_match">Les mots de passe ne correspondent pas</string>
+    <string name="email_reset_message">Email de réinitialisation envoyé</string>
+    <string name="dialog_photo_folder">Création du dossier photo</string>
+    <string name="dialog_photo_folder_cancel">Non, peut-être plus tard</string>
+    <string name="dialog_photo_folder_text1">Un dossier nommé</string>
+    <string name="dialog_photo_folder_text2">sera créé dans la galerie photo, voulez-vous le renommer ?</string>
+    <string name="dialog_photo_folder_name_change">Changement de nom du dossier Photo</string>
+    <string name="dialog_photo_folder_name_change_cancel">Non, annuler</string>
+    <string name="dialog_photo_folder_name_change_text1">Le dossier photo du tag </string>
+    <string name="dialog_photo_folder_name_change_text2">sera renommé dans la galerie photo, voulez-vous continuer ?</string>
+    <string name="dialog_define_folder_name">Oui, définir le nom du dossier</string>
+    <string name="dialog_define_folder_name_title">Nom du dossier pour</string>
+    <string name="dialog_define_folder_name_text">Veuillez entrer le nom du dossier à associer à ce tag :</string>
+    <string name="dialog_define_folder_name_cancel">Annuler</string>
+    <string name="dialog_define_folder_name_suggestion">_photo</string>
+    <string name="error_text">Erreur</string>
+    <string name="top_background">Arrière-plan supérieur</string>
+
+    <!-- Toasts - PhotoFolderManager (pre-Q creation etc.) -->
+    <string name="toast_pre_q_dir_creation">Création du dossier (pré-Q).</string>
+    <string name="toast_pre_q_dir_creation_failed">Échec de la création du dossier (pré-Q).</string>
+    <string name="toast_mediastore_entry_creation_failed">Échec de la création de l\'entrée MediaStore.</string>
+    <string name="toast_open_output_stream_error">Erreur lors de l\'ouverture du flux pour l\'image.</string>
+    <string name="toast_folder_created_with_name">Dossier "%1$s" créé.</string>
+    <string name="toast_placeholder_write_error">Erreur d\'écriture de l\'image placeholder.</string>
+    <string name="toast_folder_creation_error">Erreur lors de la création du dossier.</string>
+
+    <!-- Toasts - MonitorPhotoFragment -->
+    <string name="toast_tag_added_to_db">Tag ajouté à la base de données.</string>
+    <string name="toast_folder_name_empty">Le nom du dossier ne peut pas être vide.</string>
+    <string name="toast_folder_name_change_cancelled">Modification du nom de dossier annulée.</string>
+    <string name="toast_folder_name_unchanged_for_tag">Nom de dossier pour le tag "%1$s" est inchangé.</string>
+
+    <!-- Generic dialog labels -->
+    <string name="yes_text">Oui</string>
+    <string name="no_text">Non</string>
+
+    <!-- Setup/Info dialogs -->
+    <string name="dialog_title_setup_complete">Configuration terminée</string>
+    <string name="dialog_message_proceed_scan_for_tag">Vous pouvez à présent procéder au scan des photos pour le tag %1$s .</string>
+
+    <string name="dialog_title_folder_rename_done">Changement de nom de dossier terminé</string>
+    <string name="dialog_message_folder_rename_done">Le dossier photo pour le tag %1$s va être renommé de %2$s à %3$s et vous pourrez procéder au scan des photos pour le tag %1$s .</string>
+
+    <string name="dialog_title_tag_not_selected">Tag non sélectionné</string>
+    <string name="dialog_message_select_tag_first">Vous devez d\'abord sélectionner le tag %1$s avant de pouvoir le configurer.</string>
+    <string name="action_scan">Scan</string>
+    <string name="action_monitor">Surveillance</string>
+    <string name="dialog_title_confirmation">Confirmation</string>
+    <string name="dialog_message_start_action">Voulez-vous vraiment démarrer %1$s ?</string>
+    <string name="dialog_message_stop_action">Voulez-vous vraiment arrêter %1$s ?</string>
+
+    <!-- Permission dialog (settings redirection) -->
+    <string name="dialog_title_permission_needed">Permission nécessaire pour GalleryKeeper</string>
+    <string name="dialog_message_permission_needed">Vous devez accorder les permissions nécessaires pour accéder aux photos depuis les paramètres de l\'application.</string>
+    <string name="go_to_settings">Aller aux paramètres</string>
+
+    <!-- Remove monitoring / delete or rename folder -->
+    <string name="dialog_title_remove_monitoring">Suppression de la surveillance</string>
+    <string name="dialog_message_remove_monitoring">La surveillance du tag a été retirée.\nLe dossier associé à  %1$s  doit être supprimé (toutes les photos seront perdues) ou renommé.</string>
+    <string name="delete_text">Supprimer</string>
+    <string name="rename_text">Renommer</string>
+
+    <string name="dialog_title_confirm_delete">Confirmer la suppression</string>
+    <string name="dialog_message_confirm_delete">Êtes-vous sûr de vouloir supprimer le dossier %1$s et toutes ses photos ?</string>
+    <string name="yes_delete">Oui, supprimer</string>
+
+    <string name="rename_folder_for_tag_title">Renommer le dossier pour %1$s</string>
+
+    <!-- Rename after permission toasts -->
+    <string name="toast_rename_success_after_permission">Dossier renommé avec succès (après permission).</string>
+    <string name="toast_some_files_not_moved_after_permission">Certains fichiers n\'ont pas pu être déplacés (après permission).</string>
+    <string name="toast_permission_denied_rename_folder">Permission refusée pour renommer le dossier.</string>
+</resources>

@@ -1,4 +1,4 @@
-# GalleryKeeper-App
+# <img src="app/src/main/assets/GalleryKeeper.png" alt="GalleryKeeper logo" width="44" /> GalleryKeeper-App
 
 ![GalleryKeeper_description](app/src/main/assets/GalleryKeeper_descr.png)
 
@@ -110,7 +110,7 @@ This is an Android rule: any app doing continuous background work must show a no
 - target sdk version : 35
 
 
-- **Test APK (debug build)**: [GalleryKeeper.apk](https://www.dropbox.com/scl/fi/z4ow92ynle7y8fyw560c7/GalleryKeeper.apk?rlkey=5gl19047zt2jc4537tjz9vdo3&st=ii7fajii&dl=0)
+- **Test APK (debug build)**: <img src="app/src/main/assets/GalleryKeeper.png" alt="GalleryKeeper" width="18" style="vertical-align: middle;" /> [GalleryKeeper.apk](https://www.dropbox.com/scl/fi/z4ow92ynle7y8fyw560c7/GalleryKeeper.apk?rlkey=5gl19047zt2jc4537tjz9vdo3&st=ii7fajii&dl=0)
 
 - **Demo #1 — in English**: https://www.youtube.com/watch?v=jnUaWvC-wpw
 - **Demo #2 — in French**: https://www.youtube.com/watch?v=V_BQd_TGrLw

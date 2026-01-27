@@ -121,7 +121,13 @@ This is an Android rule: any app doing continuous background work must show a no
 
 ## ScreenShots
 
-<p style="text-align: center;">
-  <img src="app/src/main/assets/capture1_ok.png" alt="Capture 1" width="300" height="600" style="object-fit: cover; object-position: center; border-radius: 10px; margin-right: 12px;" />
-  <img src="app/src/main/assets/capture_monitor.png" alt="Monitoring" width="300" height="600" style="object-fit: cover; object-position: center; border-radius: 10px;" />
-</p>
+<table>
+  <tr>
+    <td>
+      <img src="app/src/main/assets/capture1_ok_b.png" alt="Capture 1" width="250" />
+    </td>
+    <td>
+      <img src="app/src/main/assets/capture_monitor_b.png" alt="Monitoring" width="250" />
+    </td>
+  </tr>
+</table>

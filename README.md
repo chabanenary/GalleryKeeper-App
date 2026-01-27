@@ -110,10 +110,16 @@ This is an Android rule: any app doing continuous background work must show a no
 - target sdk version : 35
 
 
-- **Test APK (debug build)**: [gallerykeeper.apk](https://www.dropbox.com/scl/fi/wlck8fubn108m9fd1y0v2/GalleryKeeper.apk?rlkey=ekuc0w89jn829ypb8mt68n2v0&st=sjb6wo9a&dl=0)
+- **Test APK (debug build)**: [GalleryKeeper.apk](https://www.dropbox.com/scl/fi/z4ow92ynle7y8fyw560c7/GalleryKeeper.apk?rlkey=5gl19047zt2jc4537tjz9vdo3&st=ii7fajii&dl=0)
 
 - **Demo #1 — in English**: https://www.youtube.com/watch?v=jnUaWvC-wpw
 - **Demo #2 — in French**: https://www.youtube.com/watch?v=V_BQd_TGrLw
 
 
 ## ScreenShots
+
+![Capture 1](app/src/main/assets/capture_1_ok.png)
+
+![Capture 2](app/src/main/assets/capture2_ok_Grande.jpeg)
+
+![Monitoring](app/src/main/assets/capture_monitor.png)

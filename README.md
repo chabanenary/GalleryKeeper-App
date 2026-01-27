@@ -2,7 +2,7 @@
 
 <!-- Illustration (scaled down for a more harmonious layout) -->
 <p>
-  <img src="app/src/main/assets/GalleryKeeper_descr.png" alt="GalleryKeeper description" width="720" />
+  <img src="app/src/main/assets/GalleryKeeper_descr.png" alt="GalleryKeeper description" width="520" />
 </p>
 
 ## Your gallery, simpler. Cleaner. Better organized.
@@ -121,6 +121,7 @@ This is an Android rule: any app doing continuous background work must show a no
 
 ## ScreenShots
 
-![Capture 1](app/src/main/assets/capture1_ok.png)
-
-![Monitoring](app/src/main/assets/capture_monitor.png)
+<p>
+  <img src="app/src/main/assets/capture1_ok.png" alt="Capture 1" width="320" />
+  <img src="app/src/main/assets/capture_monitor.png" alt="Monitoring" width="320" />
+</p>

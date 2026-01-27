@@ -1,6 +1,5 @@
 # GalleryKeeper-App
 
-![GalleryKeeper_logo](app/src/main/assets/GalleryKeeper.png)
 ![GalleryKeeper_description](app/src/main/assets/GalleryKeeper_descr.png)
 
 ## Your gallery, simpler. Cleaner. Better organized.
@@ -107,8 +106,14 @@ This is an Android rule: any app doing continuous background work must show a no
 
 ## Demo
 
-
 - minimum sdk version : 24
 - target sdk version : 35
+
+
+- **Test APK (debug build)**: [gallerykeeper.apk](https://www.dropbox.com/scl/fi/wlck8fubn108m9fd1y0v2/GalleryKeeper.apk?rlkey=ekuc0w89jn829ypb8mt68n2v0&st=sjb6wo9a&dl=0)
+
+- **Demo #1 — in English**: https://www.youtube.com/watch?v=jnUaWvC-wpw
+- **Demo #2 — in French**: https://www.youtube.com/watch?v=V_BQd_TGrLw
+
 
 ## ScreenShots

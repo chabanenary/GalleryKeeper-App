@@ -1,6 +1,9 @@
 # <img src="app/src/main/assets/GalleryKeeper.png" alt="GalleryKeeper logo" width="44" style="vertical-align: middle;" /> <span style="position: relative; top: -2px;">GalleryKeeper-App</span>
 
-![GalleryKeeper_description](app/src/main/assets/GalleryKeeper_descr.png)
+<!-- Illustration (scaled down for a more harmonious layout) -->
+<p>
+  <img src="app/src/main/assets/GalleryKeeper_descr.png" alt="GalleryKeeper description" width="720" />
+</p>
 
 ## Your gallery, simpler. Cleaner. Better organized.
 

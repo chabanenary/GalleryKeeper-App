@@ -120,6 +120,4 @@ This is an Android rule: any app doing continuous background work must show a no
 
 ![Capture 1](app/src/main/assets/capture_1_ok.png)
 
-![Capture 2](app/src/main/assets/capture2_ok_Grande.jpeg)
-
 ![Monitoring](app/src/main/assets/capture_monitor.png)

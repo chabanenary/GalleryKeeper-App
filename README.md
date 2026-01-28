@@ -50,6 +50,7 @@ To do this, GalleryKeeper uses an **AI model** based on **YOLO11**, **adapted fo
 4. If a sensitive action is required (e.g., deletion), Android shows a system prompt:
     - you accept → the action is performed
     - you refuse → nothing is deleted
+5. You can also **scan your entire photo gallery** to classify existing photos (not only newly added ones).
 
 ---
 

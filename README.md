@@ -76,22 +76,6 @@ To work properly, Android may show:
 
 ---
 
-## FAQ
-
-### Does GalleryKeeper delete photos automatically?
-
-No. When Android requires a confirmation, **you must approve it**. Without your consent, nothing is deleted.
-
-### Does the app work when I close it?
-
-Yes, if **monitoring** is enabled. Android keeps a service running with a notification.
-
-### Why do I see a “monitoring active” notification?
-
-This is an Android rule: any app doing continuous background work must show a notification.
-
----
-
 ## Summary
 
 **GalleryKeeper** is your assistant to:
@@ -132,3 +116,19 @@ This is an Android rule: any app doing continuous background work must show a no
     </td>
   </tr>
 </table>
+
+---
+
+## FAQ
+
+### Does GalleryKeeper delete photos automatically?
+
+No. When Android requires a confirmation, **you must approve it**. Without your consent, nothing is deleted.
+
+### Does the app work when I close it?
+
+Yes, if **monitoring** is enabled. Android keeps a service running with a notification.
+
+### Why do I see a “monitoring active” notification?
+
+This is an Android rule: any app doing continuous background work must show a notification.

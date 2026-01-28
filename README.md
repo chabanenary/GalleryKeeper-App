@@ -33,7 +33,7 @@ With GalleryKeeper, you can:
 
 GalleryKeeper focuses on **detecting and organizing sensitive/delicate photos**. Depending on your configuration, the app can identify 4 main categories:
 
-- **Nudity photos**
+- **Nude photos**
 - **Children photos**
 - **ID documents** (identity cards, passports, etc.)
 - **Credit card photos**

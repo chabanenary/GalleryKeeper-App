@@ -119,6 +119,12 @@ To work properly, Android may show:
 
 ---
 
+## Behind the project / Blog post
+I wrote a short blog post sharing the story behind GalleryKeeper: why I built it, what I learned while self-training on Android + on-device ML (YOLO), and what was surprisingly hard in practice (especially MediaStore, emulator vs real devices, and MVVM boundaries).
+Read the blog post: My First Android App as a Beginner: Lessons learned building GalleryKeeper
+https://dev.to/chabanenary/my-first-android-app-as-a-beginner-what-i-learned-building-an-offline-ml-gallery-organizer-and-3d1k/edit
+If you’re curious about the technical decisions (Room/MVVM, MediaStore constraints, offline-first/privacy), this post gives the full context.
+
 ## FAQ
 
 ### Does GalleryKeeper delete photos automatically?

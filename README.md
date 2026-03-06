@@ -100,7 +100,7 @@ To work properly, Android may show:
 
 - **Test APK (debug build)**: <img src="app/src/main/assets/GalleryKeeper.png" alt="GalleryKeeper" width="18" style="vertical-align: middle;" /> [GalleryKeeper.apk](https://www.dropbox.com/scl/fi/z4ow92ynle7y8fyw560c7/GalleryKeeper.apk?rlkey=5gl19047zt2jc4537tjz9vdo3&st=ii7fajii&dl=0)
 
-- **Play Store link: https://play.google.com/store/apps/details?id=com.chabane.gallerykeeper&pcampaignid=web_share
+- **Play Store link**: https://play.google.com/store/apps/details?id=com.chabane.gallerykeeper&pcampaignid=web_share
 - **Demo #1 — in English**: https://www.youtube.com/watch?v=jnUaWvC-wpw
 - **Demo #2 — in French**: https://www.youtube.com/watch?v=V_BQd_TGrLw
 

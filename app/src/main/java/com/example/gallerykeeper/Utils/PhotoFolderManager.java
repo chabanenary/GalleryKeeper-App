@@ -455,13 +455,35 @@ public class PhotoFolderManager {
 
     }
 
-    public static List<ImageData> loadImagesFromGallery(Context context) {
+    /**
+     * Charge les images de la galerie en excluant celles situées dans les dossiers de tags.
+     * @param excludedFolderNames Noms de dossiers à exclure. Si null ou vide, tout est chargé.
+     */
+    public static List<ImageData> loadImagesFromGallery(Context context, List<String> excludedFolderNames) {
         List<ImageData> images = new ArrayList<>();
 
         Uri externalUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-        String[] projection = {MediaStore.Images.Media._ID}; // Utilisez l'ID pour accéder aux images
 
-        try (Cursor cursor = context.getContentResolver().query(externalUri, projection, null, null, null)) {
+        String selection = null;
+        String[] selectionArgs = null;
+
+        if (excludedFolderNames != null && !excludedFolderNames.isEmpty()
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            StringBuilder sb = new StringBuilder();
+            List<String> args = new ArrayList<>();
+            for (int i = 0; i < excludedFolderNames.size(); i++) {
+                if (i > 0) sb.append(" AND ");
+                sb.append(MediaStore.Images.Media.RELATIVE_PATH + " NOT LIKE ?");
+                args.add("%" + excludedFolderNames.get(i) + "%");
+            }
+            selection = sb.toString();
+            selectionArgs = args.toArray(new String[0]);
+        }
+
+        String[] projection = {MediaStore.Images.Media._ID};
+
+        try (Cursor cursor = context.getContentResolver().query(
+                externalUri, projection, selection, selectionArgs, null)) {
             if (cursor != null && cursor.moveToFirst()) {
                 int idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID);
 
@@ -470,21 +492,25 @@ public class PhotoFolderManager {
                     Uri imageUri = ContentUris.withAppendedId(externalUri, id);
 
                     try {
-                        // Chargez le bitmap à partir de l'URI (sans API dépréciée)
                         Bitmap bitmap = BitmapLoader.decode(context.getContentResolver(), imageUri);
                         if (bitmap != null) {
                             images.add(new ImageData(bitmap, imageUri));
                         }
                     } catch (IOException e) {
-                        Log.e("ImageLoader", "Erreur lors du chargement du bitmap pour l'URI : " + imageUri, e);
+                        Log.e("ImageLoader", "Erreur chargement bitmap pour: " + imageUri, e);
                     }
                 } while (cursor.moveToNext());
             }
         } catch (Exception e) {
-            Log.e("ImageLoader", "Erreur lors de la requête MediaStore : " + e.getMessage());
+            Log.e("ImageLoader", "Erreur requête MediaStore: " + e.getMessage());
         }
 
         return images;
+    }
+
+    /** Version sans exclusion (compatibilité). */
+    public static List<ImageData> loadImagesFromGallery(Context context) {
+        return loadImagesFromGallery(context, null);
     }
 
     public static String getFileNameFromUri(Context context, Uri uri) {

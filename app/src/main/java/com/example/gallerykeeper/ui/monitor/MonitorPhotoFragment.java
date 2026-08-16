@@ -1607,15 +1607,35 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         Log.d("MonitorPhotoFragment", "onScanTask appelé avec le contexte.");
 
         scan_predictor = new PhotoPredictor(context);
-        processAllPhotosInGallery(context);
 
+        // Récupérer les noms de dossiers de tags pour les exclure du scan
+        databaseExecutor.execute(() -> {
+            List<String> excludedFolders = new ArrayList<>();
+            try {
+                if (userEmail != null) {
+                    AppDatabase db = AppDatabase.getInstance(context.getApplicationContext(), userEmail);
+                    List<Tag> tags = db.tagDao().getAllTags();
+                    if (tags != null) {
+                        for (Tag tag : tags) {
+                            if (tag.getFolderName() != null) {
+                                excludedFolders.add(tag.getFolderName());
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Erreur récupération des dossiers à exclure", e);
+            }
+            Log.d(TAG, "Dossiers exclus du scan: " + excludedFolders);
+            processAllPhotosInGallery(context, excludedFolders);
+        });
     }
 
 
-    private void processAllPhotosInGallery(Context context){
+    private void processAllPhotosInGallery(Context context, List<String> excludedFolders){
 
         if (hasPermission()) {
-            List<ImageData> allImages = PhotoFolderManager.loadImagesFromGallery(context);
+            List<ImageData> allImages = PhotoFolderManager.loadImagesFromGallery(context, excludedFolders);
 
             if (!allImages.isEmpty()) {
                 int count = 0;

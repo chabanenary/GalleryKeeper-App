@@ -1,9 +1,9 @@
 package com.example.gallerykeeper.Utils;
 
-
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.os.SystemClock;
+import android.util.Log;
 
 import org.tensorflow.lite.DataType;
 import org.tensorflow.lite.Interpreter;
@@ -29,8 +29,10 @@ import java.util.Iterator;
 import java.util.List;
 
 public class Detector {
+    private static final String TAG = "Detector";
 
     private Interpreter interpreter;
+    private GpuDelegate gpuDelegate;
     private List<String> labels = new ArrayList<>();
 
     private int tensorWidth = 0;
@@ -51,7 +53,6 @@ public class Detector {
     private static final float CONFIDENCE_THRESHOLD = 0.3F;
     private static final float IOU_THRESHOLD = 0.5F;
 
-
     public Detector(Context context, String modelPath, String labelPath) {
         this.context = context;
         this.modelPath = modelPath;
@@ -62,13 +63,17 @@ public class Detector {
                 .add(new CastOp(INPUT_IMAGE_TYPE))
                 .build();
 
-        CompatibilityList compatList = new CompatibilityList();
-
         Interpreter.Options options = new Interpreter.Options();
-        if (compatList.isDelegateSupportedOnThisDevice()) {
-            GpuDelegate.Options delegateOptions = compatList.getBestOptionsForThisDevice();
-            options.addDelegate(new GpuDelegate(delegateOptions));
-        } else {
+        try {
+            CompatibilityList compatList = new CompatibilityList();
+            if (compatList.isDelegateSupportedOnThisDevice()) {
+                gpuDelegate = new GpuDelegate();
+                options.addDelegate(gpuDelegate);
+            } else {
+                options.setNumThreads(4);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "GPU delegate init failed, using CPU", e);
             options.setNumThreads(4);
         }
 
@@ -82,8 +87,6 @@ public class Detector {
             if (inputShape != null) {
                 tensorWidth = inputShape[1];
                 tensorHeight = inputShape[2];
-
-                // If in case input shape is in format of [1, 3, ..., ...]
                 if (inputShape[1] == 3) {
                     tensorWidth = inputShape[2];
                     tensorHeight = inputShape[3];
@@ -97,33 +100,7 @@ public class Detector {
 
             labels = loadLabelsFlexible(context, labelPath);
         } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void restart(boolean isGpu) {
-        interpreter.close();
-
-        Interpreter.Options options;
-        if (isGpu) {
-            CompatibilityList compatList = new CompatibilityList();
-            options = new Interpreter.Options();
-            if (compatList.isDelegateSupportedOnThisDevice()) {
-                GpuDelegate.Options delegateOptions = compatList.getBestOptionsForThisDevice();
-                options.addDelegate(new GpuDelegate(delegateOptions));
-            } else {
-                options.setNumThreads(4);
-            }
-        } else {
-            options = new Interpreter.Options();
-            options.setNumThreads(4);
-        }
-
-        try {
-            java.nio.MappedByteBuffer model = loadModelBuffer(context, modelPath);
-            interpreter = new Interpreter(model, options);
-        } catch (IOException e) {
-            e.printStackTrace();
+            Log.e(TAG, "Failed to load model or labels", e);
         }
     }
 
@@ -148,12 +125,12 @@ public class Detector {
             } else {
                 is = ctx.getAssets().open(labelsPath);
             }
-            BufferedReader reader = new BufferedReader(new InputStreamReader(is));
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (!line.isEmpty()) out.add(line);
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (!line.isEmpty()) out.add(line);
+                }
             }
-            reader.close();
         } finally {
             if (is != null) try { is.close(); } catch (IOException ignored) {}
         }
@@ -161,35 +138,45 @@ public class Detector {
     }
 
     public void close() {
-        interpreter.close();
+        if (interpreter != null) {
+            interpreter.close();
+            interpreter = null;
+        }
+        if (gpuDelegate != null) {
+            gpuDelegate.close();
+            gpuDelegate = null;
+        }
     }
 
-
-    public List<BoundingBox>  detect(Bitmap frame) {
-        if (tensorWidth == 0) return null;
-        if (tensorHeight == 0) return null;
-        if (numChannel == 0) return null;
-        if (numElements == 0) return null;
+    public List<BoundingBox> detect(Bitmap frame) {
+        if (interpreter == null) return null;
+        if (tensorWidth == 0 || tensorHeight == 0) return null;
+        if (numChannel == 0 || numElements == 0) return null;
 
         long inferenceTime = SystemClock.uptimeMillis();
 
         Bitmap resizedBitmap = Bitmap.createScaledBitmap(frame, tensorWidth, tensorHeight, false);
+        try {
+            TensorImage tensorImage = new TensorImage(INPUT_IMAGE_TYPE);
+            tensorImage.load(resizedBitmap);
+            TensorImage processedImage = imageProcessor.process(tensorImage);
+            java.nio.ByteBuffer imageBuffer = processedImage.getBuffer();
 
-        TensorImage tensorImage = new TensorImage(INPUT_IMAGE_TYPE);
-        tensorImage.load(resizedBitmap);
-        TensorImage processedImage = imageProcessor.process(tensorImage);
-        java.nio.ByteBuffer imageBuffer = processedImage.getBuffer();
+            TensorBuffer output = TensorBuffer.createFixedSize(new int[]{1, numChannel, numElements}, OUTPUT_IMAGE_TYPE);
+            interpreter.run(imageBuffer, output.getBuffer());
 
-        TensorBuffer output = TensorBuffer.createFixedSize(new int[]{1, numChannel, numElements}, OUTPUT_IMAGE_TYPE);
-        interpreter.run(imageBuffer, output.getBuffer());
-
-        List<BoundingBox> bestBoxes = bestBox(output.getFloatArray());
-        inferenceTime = SystemClock.uptimeMillis() - inferenceTime;
-        return bestBoxes;
+            List<BoundingBox> bestBoxes = bestBox(output.getFloatArray());
+            inferenceTime = SystemClock.uptimeMillis() - inferenceTime;
+            Log.d(TAG, "Inference time: " + inferenceTime + "ms");
+            return bestBoxes;
+        } finally {
+            if (resizedBitmap != frame) {
+                resizedBitmap.recycle();
+            }
+        }
     }
 
     private List<BoundingBox> bestBox(float[] array) {
-
         List<BoundingBox> boundingBoxes = new ArrayList<>();
 
         for (int c = 0; c < numElements; c++) {
@@ -206,10 +193,10 @@ public class Detector {
                 arrayIdx += numElements;
             }
 
-            if (maxConf > CONFIDENCE_THRESHOLD) {
+            if (maxConf > CONFIDENCE_THRESHOLD && maxIdx >= 0 && maxIdx < labels.size()) {
                 String clsName = labels.get(maxIdx);
-                float cx = array[c]; // 0
-                float cy = array[c + numElements]; // 1
+                float cx = array[c];
+                float cy = array[c + numElements];
                 float w = array[c + numElements * 2];
                 float h = array[c + numElements * 3];
                 float x1 = cx - (w / 2F);
@@ -222,29 +209,23 @@ public class Detector {
                 if (y2 < 0F || y2 > 1F) continue;
 
                 boundingBoxes.add(
-                        new BoundingBox(
-                                x1, y1, x2, y2,
-                                cx, cy, w, h,
-                                maxConf, maxIdx, clsName
-                        )
+                        new BoundingBox(x1, y1, x2, y2, cx, cy, w, h, maxConf, maxIdx, clsName)
                 );
             }
         }
 
         if (boundingBoxes.isEmpty()) return null;
-
         return applyNMS(boundingBoxes);
     }
 
     private List<BoundingBox> applyNMS(List<BoundingBox> boxes) {
         List<BoundingBox> sortedBoxes = new ArrayList<>(boxes);
-        Collections.sort(sortedBoxes, Comparator.comparingDouble(box -> -box.cnf)); // Sort descending by confidence
+        Collections.sort(sortedBoxes, Comparator.comparingDouble(box -> -box.cnf));
         List<BoundingBox> selectedBoxes = new ArrayList<>();
 
         while (!sortedBoxes.isEmpty()) {
-            BoundingBox first = sortedBoxes.get(0);
+            BoundingBox first = sortedBoxes.remove(0);
             selectedBoxes.add(first);
-            sortedBoxes.remove(first);
 
             Iterator<BoundingBox> iterator = sortedBoxes.iterator();
             while (iterator.hasNext()) {

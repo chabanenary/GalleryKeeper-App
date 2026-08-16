@@ -4,10 +4,12 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.ContentUris;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.ImageDecoder;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Handler;
@@ -22,12 +24,16 @@ import com.example.gallerykeeper.R;
 import com.example.gallerykeeper.Utils.PhotoPredictor;
 import com.example.gallerykeeper.Utils.PhotoTaskUtils;
 import com.example.gallerykeeper.Utils.UserPrefs;
+import com.example.gallerykeeper.Utils.MediaStoreUriValidator;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MonitorForegroundService extends Service {
     private static final String TAG = "MonitorService";
@@ -40,20 +46,18 @@ public class MonitorForegroundService extends Service {
     private ContentObserver galleryObserver;
     private PhotoPredictor predictor;
     private Handler mainHandler;
-
-    private Uri lastProcessedUri;
-    private Uri lastTargetProcessedUri;
-    private Uri newPhotoQueueUri;
+    private final AtomicBoolean isDestroyed = new AtomicBoolean(false);
 
     private final Queue<Uri> lastProcessedPhotoQueue = new ConcurrentLinkedQueue<>();
     private final Queue<Uri> lastTargetProcessedPhotoQueue = new ConcurrentLinkedQueue<>();
     private final Queue<Uri> newPhotoQueue = new ConcurrentLinkedQueue<>();
 
-    // Petit délai pour laisser l'appareil photo finaliser l'écriture
+    private final Set<Uri> urisBeingProcessed = ConcurrentHashMap.newKeySet();
+    private final Map<Uri, Integer> retryCount = new ConcurrentHashMap<>();
 
-    private final Set<Uri> urisBeingProcessed = new ConcurrentHashMap<Uri, Boolean>().keySet(true); // Pour marquer les URIs en cours de traitement
-
-    private static final long PROCESS_DELAY_MS = 300L;
+    private static final long PROCESS_DELAY_MS = 800L;
+    private static final int MAX_DECODE_RETRIES = 3;
+    private static final long RETRY_DELAY_MS = 1000L;
 
     @Override
     public void onCreate() {
@@ -62,13 +66,15 @@ public class MonitorForegroundService extends Service {
         startForeground(1, getNotification());
         publishMonitoringState(true);
 
-        lastProcessedUri = null; // Initialiser l'URI traité
-        lastTargetProcessedUri = null; // Initialiser l'URI cible traité
-        newPhotoQueueUri = null; // Initialiser l'URI de la nouvelle photo
-
-        predictor = new PhotoPredictor(this);
-        mainHandler = new Handler(Looper.getMainLooper());
-        registerGalleryObserver();
+        try {
+            predictor = new PhotoPredictor(this);
+            mainHandler = new Handler(Looper.getMainLooper());
+            registerGalleryObserver();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize service", e);
+            publishMonitoringState(false);
+            stopSelf();
+        }
     }
 
     private void publishMonitoringState(boolean active) {
@@ -79,174 +85,218 @@ public class MonitorForegroundService extends Service {
             Log.w(TAG, "Prefs monitoring state fail", e);
         }
         Intent i = new Intent(ACTION_MONITORING_STATE);
+        i.setPackage(getPackageName());
         i.putExtra(EXTRA_ACTIVE, active);
         sendBroadcast(i);
     }
-
-
 
     private void registerGalleryObserver() {
         galleryObserver = new ContentObserver(mainHandler) {
             @Override
             public void onChange(boolean selfChange, Uri uri) {
                 super.onChange(selfChange, uri);
-                if (uri != null) {
-                    if (!isSpecificMediaItemUri(uri)) {
-                        Log.d(TAG, "URI générique ignorée: " + uri);
-                        return;
-                    }
-                    Log.d(TAG, "ContentObserver onChange: URI détectée: " + uri);
+                if (isDestroyed.get()) return;
 
-                    //  Vérification PRIMAIRE pour éviter de traiter une URI déjà en cours ou très récemment traitée
-                    //  Cette vérification est cruciale pour éviter de multiples postDelayed pour la même URI.
-                    if (urisBeingProcessed.contains(uri) ||
-                            lastProcessedPhotoQueue.contains(uri) ||
-                            lastTargetProcessedPhotoQueue.contains(uri)) {
-                        Log.d(TAG, "URI " + uri + " est déjà en cours de traitement ou récemment traitée, ignorée initialement.");
-                        return;
-                    }
-
-                    // Si l'URI n'est pas déjà marquée, l'ajouter à la file pour traitement.
-                    // Et la marquer comme "en cours de traitement" pour éviter que des onChange rapprochés
-                    // ne la repostent immédiatement.
-                    // Il faudra la retirer de urisBeingProcessed une fois le traitement terminé ou échoué.
-                    PhotoTaskUtils.addUriToQueue(newPhotoQueue, uri);
-                    urisBeingProcessed.add(uri); // Marquer comme en cours de traitement
-                    Log.d(TAG, "Monitoring service: Nouvelle photo ajoutée à newPhotoQueue: " + uri);
-                    processNextInQueue(); // Traiter la file
-
-                } else {
+                if (uri == null) {
                     Log.w(TAG, "URI de la nouvelle photo est null dans onChange.");
+                    return;
+                }
+
+                if (isInvalidMediaUri(uri)) {
+                    Log.d(TAG, "URI générique ignorée: " + uri);
+                    return;
+                }
+                Log.d(TAG, "ContentObserver onChange: URI détectée: " + uri);
+
+                if (lastProcessedPhotoQueue.contains(uri) ||
+                        lastTargetProcessedPhotoQueue.contains(uri)) {
+                    Log.d(TAG, "URI " + uri + " récemment traitée, ignorée.");
+                    return;
+                }
+
+                // Atomic add: only proceed if URI was not already being processed
+                if (urisBeingProcessed.add(uri)) {
+                    PhotoTaskUtils.addUriToQueue(newPhotoQueue, uri);
+                    Log.d(TAG, "Nouvelle photo ajoutée à newPhotoQueue: " + uri);
+                    processNextInQueue();
+                } else {
+                    Log.d(TAG, "URI " + uri + " déjà en cours de traitement, ignorée.");
                 }
             }
         };
         getContentResolver().registerContentObserver(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                true, // true pour notifier aussi les descendants, ce qui peut causer des notifications multiples
+                true,
                 galleryObserver
         );
         Log.d(TAG, "GalleryObserver enregistré.");
     }
 
-
     private void processNextInQueue() {
+        if (isDestroyed.get()) return;
+
         Uri uriToProcess = newPhotoQueue.poll();
-        if (uriToProcess != null) {
-            // La vérification des files lastProcessedPhotoQueue/lastTargetProcessedPhotoQueue
-            // est redondante ici si urisBeingProcessed est bien géré, mais ne fait pas de mal.
-            if (lastProcessedPhotoQueue.contains(uriToProcess) || lastTargetProcessedPhotoQueue.contains(uriToProcess)) {
-                Log.d(TAG, "URI " + uriToProcess + " trouvée dans lastProcessed/Target queues avant postDelayed, ignorée.");
-                urisBeingProcessed.remove(uriToProcess); // Nettoyer le marquage
-                processNextInQueue(); // Vérifier s'il y a autre chose
-                return;
-            }
-            Log.d(TAG, "Préparation du traitement pour: " + uriToProcess);
-            processNewPhotoWithDelay(uriToProcess);
-        } else {
+        if (uriToProcess == null) {
             Log.d(TAG, "newPhotoQueue est vide.");
+            return;
         }
+
+        if (isInvalidMediaUri(uriToProcess)) {
+            Log.w(TAG, "URI invalide ignorée lors du poll: " + uriToProcess);
+            urisBeingProcessed.remove(uriToProcess);
+            // Use handler post instead of recursion to avoid stack overflow
+            mainHandler.post(this::processNextInQueue);
+            return;
+        }
+
+        if (lastProcessedPhotoQueue.contains(uriToProcess) || lastTargetProcessedPhotoQueue.contains(uriToProcess)) {
+            Log.d(TAG, "URI " + uriToProcess + " déjà traitée, ignorée.");
+            urisBeingProcessed.remove(uriToProcess);
+            mainHandler.post(this::processNextInQueue);
+            return;
+        }
+
+        Log.d(TAG, "Préparation du traitement pour: " + uriToProcess);
+        processNewPhotoWithDelay(uriToProcess);
     }
 
-
-    private void processNewPhotoWithDelay(final Uri uri) { // Renommée pour clarifier
+    private void processNewPhotoWithDelay(final Uri uri) {
         mainHandler.postDelayed(() -> {
+            if (isDestroyed.get()) {
+                urisBeingProcessed.remove(uri);
+                return;
+            }
+
             Log.d(TAG, "Exécution de processNewPhoto pour (après délai): " + uri);
 
-            if (!isSpecificMediaItemUri(uri)) {
-                Log.w(TAG, "URI invalide détectée pendant le traitement, abandonnée: " + uri);
+            if (isInvalidMediaUri(uri)) {
+                Log.w(TAG, "URI invalide détectée pendant le traitement: " + uri);
                 urisBeingProcessed.remove(uri);
                 processNextInQueue();
                 return;
             }
 
-            // Vérification finale avant traitement lourd, au cas où elle aurait été traitée
-            // par un autre chemin pendant le délai (peu probable avec la synchro en amont mais sécuritaire)
             if (lastProcessedPhotoQueue.contains(uri) || lastTargetProcessedPhotoQueue.contains(uri)) {
-                Log.d(TAG, "URI " + uri + " trouvée dans lastProcessed/Target queues DANS postDelayed, ignorée.");
-                urisBeingProcessed.remove(uri); // Nettoyer
-                processNextInQueue(); // Vérifier s'il y a autre chose
+                Log.d(TAG, "URI " + uri + " déjà traitée, ignorée.");
+                urisBeingProcessed.remove(uri);
+                processNextInQueue();
                 return;
             }
 
+            Bitmap bitmap = null;
             try {
-                Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContentResolver(), uri);
+                bitmap = decodeBitmapFromUri(getContentResolver(), uri);
                 if (bitmap == null) {
-                    Log.e(TAG, "Bitmap est null pour URI: " + uri);
-                    urisBeingProcessed.remove(uri); // Nettoyer
-                    processNextInQueue(); // Suivant
+                    int attempts = retryCount.getOrDefault(uri, 0);
+                    if (attempts < MAX_DECODE_RETRIES) {
+                        retryCount.put(uri, attempts + 1);
+                        Log.w(TAG, "Bitmap null pour " + uri + ", retry " + (attempts + 1) + "/" + MAX_DECODE_RETRIES);
+                        mainHandler.postDelayed(() -> processNewPhotoWithDelay(uri), RETRY_DELAY_MS);
+                        return;
+                    }
+                    Log.e(TAG, "Bitmap toujours null après " + MAX_DECODE_RETRIES + " tentatives pour: " + uri);
+                    retryCount.remove(uri);
+                    urisBeingProcessed.remove(uri);
+                    processNextInQueue();
                     return;
                 }
+                retryCount.remove(uri);
 
                 String tag = predictor.predict(bitmap);
                 if (tag != null) {
-
                     String userName = UserPrefs.getUserEmail(this);
                     if (userName == null) {
-                        Log.w(TAG, "Aucun userEmail trouvé dans UserPrefs, impossible de déterminer la base.");
+                        Log.w(TAG, "Aucun userEmail trouvé, impossible de traiter.");
                         urisBeingProcessed.remove(uri);
                         processNextInQueue();
                         return;
                     }
-                    Log.d(TAG,"userName pour le déplacement: " + userName);
                     Log.d(TAG, "Tag détecté pour " + uri + ": " + tag);
-                    PhotoTaskUtils.moveUriToTagFolder(this, userName,  uri, tag, result -> {
+                    PhotoTaskUtils.moveUriToTagFolder(this, userName, uri, tag, result -> {
+                        if (isDestroyed.get()) {
+                            urisBeingProcessed.remove(uri);
+                            return;
+                        }
                         if (result.isSuccess()) {
                             Log.d(TAG, "Photo déplacée avec succès: " + uri + " vers dossier " + tag);
                             PhotoTaskUtils.addUriToQueue(lastProcessedPhotoQueue, uri);
                             PhotoTaskUtils.addUriToQueue(lastTargetProcessedPhotoQueue, result.getTargetUri());
                             PendingDeletionRepository.enqueue(getApplicationContext(), uri);
                             PendingDeletionRepository.broadcastUpdate(MonitorForegroundService.this);
-                            Log.d(TAG, "Ajout de " + uri + " au dépôt des suppressions en attente.");
-                            PhotoPredictor.showNotification(this, "Photo déplacée", "...");
                         } else {
-                            Log.w(TAG, "Échec du déplacement pour " + uri + " vers dossier " + tag);
-                            PhotoPredictor.showNotification(this, "Déplacement échoué", "...");
+                            Log.w(TAG, "Échec du déplacement pour " + uri);
                         }
-                        urisBeingProcessed.remove(uri); // Traitement terminé (succès ou échec du déplacement)
-                        processNextInQueue(); // Traiter la prochaine photo dans la file
+                        urisBeingProcessed.remove(uri);
+                        processNextInQueue();
                     });
                 } else {
                     Log.d(TAG, "Aucun tag détecté pour " + uri);
-                    // Même si aucun tag, l'URI a été "traitée" (tentative de prédiction faite).
-                    // On pourrait l'ajouter à une file "non classifiée" ou simplement la retirer de beingProcessed.
                     urisBeingProcessed.remove(uri);
                     processNextInQueue();
                 }
+            } catch (OutOfMemoryError oom) {
+                Log.e(TAG, "OutOfMemory lors du décodage de " + uri, oom);
+                urisBeingProcessed.remove(uri);
+                processNextInQueue();
             } catch (IOException e) {
                 Log.e(TAG, "IOException lors du traitement de " + uri, e);
-                PhotoPredictor.showNotification(this, "Erreur", "when processing " + uri);
                 urisBeingProcessed.remove(uri);
                 processNextInQueue();
             } catch (Exception e) {
                 Log.e(TAG, "Exception inattendue lors du traitement de " + uri, e);
-                // Gérer autres exceptions
                 urisBeingProcessed.remove(uri);
                 processNextInQueue();
+            } finally {
+                if (bitmap != null) {
+                    bitmap.recycle();
+                }
             }
         }, PROCESS_DELAY_MS);
     }
 
+    @Nullable
+    private static Bitmap decodeBitmapFromUri(ContentResolver resolver, Uri uri) throws IOException {
+        if (resolver == null || uri == null) {
+            return null;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                ImageDecoder.Source source = ImageDecoder.createSource(resolver, uri);
+                return ImageDecoder.decodeBitmap(source, (decoder, info, src) -> {
+                    decoder.setAllocator(ImageDecoder.ALLOCATOR_SOFTWARE);
+                });
+            } catch (IOException | RuntimeException e) {
+                Log.w(TAG, "ImageDecoder a échoué, fallback BitmapFactory pour: " + uri, e);
+            }
+        }
+
+        try (InputStream in = resolver.openInputStream(uri)) {
+            if (in == null) {
+                return null;
+            }
+            return BitmapFactory.decodeStream(in);
+        }
+    }
 
     private Notification getNotification() {
         return new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Surveillance de la galerie")
                 .setContentText("GalleryKeeper surveille vos nouvelles photos.")
-                .setSmallIcon(R.drawable.ic_launcher_foreground) // Correction de l'icône
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
     }
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Surveillance Galerie",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
-            }
+        NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "Surveillance Galerie",
+                NotificationManager.IMPORTANCE_LOW
+        );
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager != null) {
+            manager.createNotificationChannel(channel);
         }
     }
 
@@ -257,11 +307,19 @@ public class MonitorForegroundService extends Service {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
+        isDestroyed.set(true);
+        // Cancel all pending handler callbacks to prevent post-destroy crashes
+        if (mainHandler != null) {
+            mainHandler.removeCallbacksAndMessages(null);
+        }
         if (galleryObserver != null) {
             getContentResolver().unregisterContentObserver(galleryObserver);
         }
+        if (predictor != null) {
+            predictor.close();
+        }
         publishMonitoringState(false);
+        super.onDestroy();
     }
 
     @Nullable
@@ -270,18 +328,7 @@ public class MonitorForegroundService extends Service {
         return null;
     }
 
-    private boolean isSpecificMediaItemUri(Uri uri) {
-        if (uri == null) {
-            return false;
-        }
-        if (!"content".equals(uri.getScheme())) {
-            return false;
-        }
-        try {
-            ContentUris.parseId(uri);
-            return true;
-        } catch (NumberFormatException | UnsupportedOperationException e) {
-            return false;
-        }
+    private boolean isInvalidMediaUri(@Nullable Uri uri) {
+        return uri == null || !MediaStoreUriValidator.isValidMediaStoreItemUri(uri.toString());
     }
 }

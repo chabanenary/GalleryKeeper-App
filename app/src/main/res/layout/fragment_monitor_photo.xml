@@ -111,8 +111,9 @@
 
                     <ImageButton
                         android:id="@+id/settingsButtonNude"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:padding="8dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/setting_icon_description"
                         android:src="@drawable/baseline_menu_24"
@@ -139,8 +140,9 @@
 
                     <ImageButton
                         android:id="@+id/settingsButtonChildren"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:padding="8dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/setting_icon_description"
                         android:src="@drawable/baseline_menu_24"
@@ -167,8 +169,9 @@
 
                     <ImageButton
                         android:id="@+id/settingsButtonCreditCard"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:padding="8dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/setting_icon_description"
                         android:src="@drawable/baseline_menu_24"
@@ -195,8 +198,9 @@
 
                     <ImageButton
                         android:id="@+id/settingsButtonIdentityDocument"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:padding="8dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:contentDescription="@string/setting_icon_description"
                         android:src="@drawable/baseline_menu_24"

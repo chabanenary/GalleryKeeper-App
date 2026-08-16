@@ -49,7 +49,6 @@ import com.google.firebase.auth.FirebaseUser;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -59,6 +58,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import androidx.appcompat.app.AlertDialog;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -70,7 +70,6 @@ import java.util.function.Consumer;
 
 import android.view.KeyEvent;
 import android.content.BroadcastReceiver;
-import android.content.IntentFilter;
 import android.content.SharedPreferences;
 
 /**
@@ -113,7 +112,7 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
     private PhotoPredictor scan_predictor;
 
 
-    private volatile boolean restoringState = false; // Flag pour ignorer les callbacks lors de la restauration silencieuse
+    private final AtomicBoolean restoringState = new AtomicBoolean(false);
 
 
     public MonitorPhotoFragment(){
@@ -380,7 +379,7 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         View.OnClickListener baseCheckboxClickListener = v -> updateViewModelOnCheckboxChange();
 
         checkNude.setOnClickListener(v -> {
-            if (restoringState) return; // Ignorer si restauration
+            if (restoringState.get()) return; // Ignorer si restauration
             if (checkNude.isChecked()) {
 
                 Log.d(TAG, "Checkbox Nude cochée");
@@ -410,7 +409,7 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         });
 
         checkChildren.setOnClickListener(v -> {
-            if (restoringState) return;
+            if (restoringState.get()) return;
             if (checkChildren.isChecked()) {
 
                 // Créer un Map pour les données du tag "nu"
@@ -435,7 +434,7 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         });
 
         checkCreditCard.setOnClickListener(v -> {
-            if (restoringState) return;
+            if (restoringState.get()) return;
             if (checkCreditCard.isChecked()) {
 
                 // Créer un Map pour les données du tag "nu"
@@ -464,7 +463,7 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         });
 
         checkIdentityDocument.setOnClickListener(v -> {
-            if (restoringState) return;
+            if (restoringState.get()) return;
             if (checkIdentityDocument.isChecked()) {
 
                 // Créer un Map pour les données du tag "nu"
@@ -538,15 +537,25 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
 
     @Override
     public void onDestroy() {
-        Context context = getContext();
-        if (context != null && pendingDeletionReceiver != null) {
-            context.getApplicationContext().unregisterReceiver(pendingDeletionReceiver);
+        if (pendingDeletionReceiver != null) {
+            try {
+                Context context = getContext();
+                if (context != null) {
+                    context.getApplicationContext().unregisterReceiver(pendingDeletionReceiver);
+                }
+            } catch (IllegalArgumentException e) {
+                Log.w(TAG, "Receiver already unregistered", e);
+            }
             pendingDeletionReceiver = null;
         }
-        super.onDestroy();
+        if (scan_predictor != null) {
+            scan_predictor.close();
+            scan_predictor = null;
+        }
         if (databaseExecutor != null && !databaseExecutor.isShutdown()) {
             databaseExecutor.shutdown();
         }
+        super.onDestroy();
     }
 
     /**
@@ -614,7 +623,9 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
             }
 
             if (!isTagChecked) {
-                Snackbar.make(getView(), "Veuillez d'abord sélectionner le tag \"" + tagName + "\".", Snackbar.LENGTH_LONG).show();
+                View rootView = getView();
+                if (rootView == null) return false;
+                Snackbar.make(rootView, getString(R.string.dialog_message_select_tag_first, tagName), Snackbar.LENGTH_LONG).show();
                 return false; // Empêche l'action
             }
 
@@ -822,8 +833,8 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Erreur lors de la récupération du folderName", e);
-                if (onComplete != null) {
-                    getActivity().runOnUiThread(() -> onComplete.accept(null)); // Retourne null en cas d'erreur
+                if (onComplete != null && isAdded() && getActivity() != null) {
+                    getActivity().runOnUiThread(() -> onComplete.accept(null));
                 }
             }
         });
@@ -850,9 +861,9 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
                     db.tagDao().updateTag(tag);
                     Log.d(TAG, "FolderName mis à jour pour le tag: " + tagName +"with folderName: " + folderName);
                     // Exécuter le callback avec le folderName récupéré
-                    if (onComplete != null) {
-                        String finalFolderName = folderName; // Nécessaire pour les lambdas
-                        String oldFinalFolderName = oldFolderName; // Nécessaire pour les lambdas
+                    if (onComplete != null && isAdded() && getActivity() != null) {
+                        String finalFolderName = folderName;
+                        String oldFinalFolderName = oldFolderName;
                         getActivity().runOnUiThread(() -> onComplete.accept(oldFinalFolderName, finalFolderName));
                     }
                 } else {
@@ -1187,8 +1198,6 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         new AlertDialog.Builder(requireContext())
                 .setTitle(getString(R.string.dialog_title_confirmation))
                 .setMessage(getString(R.string.dialog_message_start_action, action))
-                .setPositiveButton("Oui", (dialog, which) -> onConfirm.run())
-                .setNegativeButton("Non", null)
                 .setPositiveButton(getString(R.string.yes_text), (dialog, which) -> onConfirm.run())
                 .setNegativeButton(getString(R.string.no_text), null)
                 .show();
@@ -1198,8 +1207,6 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         new AlertDialog.Builder(requireContext())
                 .setTitle(getString(R.string.dialog_title_confirmation))
                 .setMessage(getString(R.string.dialog_message_stop_action, action))
-               .setPositiveButton("Oui", (dialog, which) -> onConfirm.run())
-                .setNegativeButton("Non", null)
                 .setPositiveButton(getString(R.string.yes_text), (dialog, which) -> onConfirm.run())
                 .setNegativeButton(getString(R.string.no_text), null)
                 .show();
@@ -1254,28 +1261,31 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
 
 
     public void shouldShowPermissionRationaleIfNeeded() {
-        ArrayList<String> deniedPermissions = new ArrayList<>();
+        Activity activity = getActivity();
+        View view = getView();
+        if (activity == null || view == null) return;
 
-        for (String permission: permissionsList) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(getActivity(), permission)) {
+        ArrayList<String> deniedPermissions = new ArrayList<>();
+        for (String permission : permissionsList) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)) {
                 deniedPermissions.add(permission);
             }
-
         }
-        if(!deniedPermissions.isEmpty()){
-            Snackbar.make(getView(), "Please grant necessary permissions to access photos", Snackbar.LENGTH_INDEFINITE)
-                    .setAction("Grant", v -> {
+        if (!deniedPermissions.isEmpty()) {
+            Snackbar.make(view, getString(R.string.dialog_message_permission_needed), Snackbar.LENGTH_INDEFINITE)
+                    .setAction(getString(R.string.go_to_settings), v -> {
                         permissionsResultLauncher.launch(deniedPermissions.toArray(new String[0]));
                     }).show();
-        }else{
+        } else {
             permissionsResultLauncher.launch(permissionsList.toArray(new String[0]));
         }
-
     }
 
-    public boolean hasPermission(){
-        for (String permission: permissionsList) {
-            if (ContextCompat.checkSelfPermission(getActivity(), permission) != PackageManager.PERMISSION_GRANTED) {
+    public boolean hasPermission() {
+        Context context = getContext();
+        if (context == null) return false;
+        for (String permission : permissionsList) {
+            if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
                 return false;
             }
         }
@@ -1301,16 +1311,13 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
                                 }
                             }
                             if (allSucceeded) {
-                               Toast.makeText(getContext(), "Dossier renommé avec succès (après permission).", Toast.LENGTH_SHORT).show();
                                 Toast.makeText(getContext(), getString(R.string.toast_rename_success_after_permission), Toast.LENGTH_SHORT).show();
                             } else {
-                                Toast.makeText(getContext(), "Certains fichiers n'ont pas pu être déplacés (après permission).", Toast.LENGTH_SHORT).show();
                                 Toast.makeText(getContext(), getString(R.string.toast_some_files_not_moved_after_permission), Toast.LENGTH_SHORT).show();
                             }
                         }
                     } else {
                         Log.w(TAG, "Permission refusée pour modifier les fichiers pour le renommage.");
-                        Toast.makeText(getContext(), "Permission refusée pour renommer le dossier.", Toast.LENGTH_SHORT).show();
                         Toast.makeText(getContext(), getString(R.string.toast_permission_denied_rename_folder), Toast.LENGTH_SHORT).show();
                     }
                     // Nettoyer les variables d'état
@@ -1614,13 +1621,12 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
                 int count = 0;
                 // Process the images
                 for (ImageData image : allImages) {
-                    // Do something with each Bitmap (e.g., display it in an ImageView)
-                    Uri imageUri = image.getUri(); // Récupère l'URI de l'image
-                    Bitmap imageBitmap = image.getBitmap(); // Récupère le Bitmap de l'image
+                    Uri imageUri = image.getUri();
+                    Bitmap imageBitmap = image.getBitmap();
                     if (imageUri != null && imageBitmap != null) {
-
                         Log.d("Scan Task", "Processing image: " + imageUri.toString());
-                        String tagName = scan_predictor.predict(imageBitmap); // Appel de la méthode pour prédire l'image
+                        String tagName = scan_predictor.predict(imageBitmap);
+                        imageBitmap.recycle();
 
                         if (tagName != null) {
                             String emailUser = getUsername();
@@ -1872,24 +1878,27 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
             return;
         }
 
-        restoringState = true;
+        restoringState.set(true);
+        Context appCtx = requireContext().getApplicationContext();
         databaseExecutor.execute(() -> {
             try {
-                AppDatabase db = AppDatabase.getInstance(requireContext().getApplicationContext(), userEmail);
+                AppDatabase db = AppDatabase.getInstance(appCtx, userEmail);
                 List<Tag> tags = db.tagDao().getAllTags();
                 if (tags == null || tags.isEmpty()) {
-                    restoringState = false;
+                    restoringState.set(false);
                     return;
                 }
                 Map<String, Boolean> states = new HashMap<>();
                 for (Tag tag : tags) {
                     states.put(tag.getTagName(), true);
                 }
-                requireActivity().runOnUiThread(() -> applyRestoredStates(states));
+                if (isAdded() && getActivity() != null) {
+                    getActivity().runOnUiThread(() -> applyRestoredStates(states));
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Erreur restauration tags", e);
             } finally {
-                restoringState = false;
+                restoringState.set(false);
             }
         });
     }

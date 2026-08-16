@@ -6,6 +6,8 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.util.Log;
 
+import com.example.gallerykeeper.Utils.MediaStoreUriValidator;
+
 import org.json.JSONArray;
 
 import java.util.ArrayList;
@@ -36,6 +38,10 @@ public final class PendingDeletionRepository {
 
     public static synchronized void enqueue(Context context, Uri uri) {
         if (uri == null) return;
+        if (!MediaStoreUriValidator.isValidMediaStoreItemUri(uri.toString())) {
+            Log.w(TAG, "enqueue: URI MediaStore invalide ignorée: " + uri);
+            return;
+        }
         List<Uri> queue = getAllInternal(context);
         queue.add(uri);
         save(context, queue);
@@ -44,7 +50,14 @@ public final class PendingDeletionRepository {
     public static synchronized void enqueueAll(Context context, List<Uri> uris) {
         if (uris == null || uris.isEmpty()) return;
         List<Uri> queue = getAllInternal(context);
-        queue.addAll(uris);
+        for (Uri uri : uris) {
+            if (uri == null) continue;
+            if (!MediaStoreUriValidator.isValidMediaStoreItemUri(uri.toString())) {
+                Log.w(TAG, "enqueueAll: URI MediaStore invalide ignorée: " + uri);
+                continue;
+            }
+            queue.add(uri);
+        }
         save(context, queue);
     }
 
@@ -84,16 +97,27 @@ public final class PendingDeletionRepository {
         if (json == null || json.isEmpty()) {
             return uris;
         }
+        boolean shouldRewrite = false;
         try {
             JSONArray array = new JSONArray(json);
             for (int i = 0; i < array.length(); i++) {
                 String value = array.optString(i, null);
-                if (value != null && !value.isEmpty()) {
-                    uris.add(Uri.parse(value));
+                if (value == null || value.isEmpty()) {
+                    continue;
                 }
+                if (!MediaStoreUriValidator.isValidMediaStoreItemUri(value)) {
+                    Log.w(TAG, "URI invalide détectée dans le dépôt, supprimée: " + value);
+                    shouldRewrite = true;
+                    continue;
+                }
+                uris.add(Uri.parse(value));
             }
         } catch (Exception e) {
             Log.e(TAG, "Echec lecture file pending", e);
+        }
+        if (shouldRewrite) {
+            // Nettoyage du stockage pour éviter de reprovoquer le crash au prochain lancement.
+            save(context, uris);
         }
         return uris;
     }
@@ -102,9 +126,15 @@ public final class PendingDeletionRepository {
         JSONArray array = new JSONArray();
         if (queue != null) {
             for (Uri uri : queue) {
-                if (uri != null) {
-                    array.put(uri.toString());
+                if (uri == null) {
+                    continue;
                 }
+                String value = uri.toString();
+                if (!MediaStoreUriValidator.isValidMediaStoreItemUri(value)) {
+                    Log.w(TAG, "save: URI MediaStore invalide ignorée: " + value);
+                    continue;
+                }
+                array.put(value);
             }
         }
         prefs(context).edit().putString(KEY_QUEUE, array.toString()).apply();

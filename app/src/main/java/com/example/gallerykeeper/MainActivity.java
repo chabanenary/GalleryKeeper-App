@@ -10,7 +10,6 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.FragmentTransaction;
 
 import com.example.gallerykeeper.ui.monitor.MonitorPhotoFragment;
-import com.example.gallerykeeper.ui.register.LoginFragment;
 import com.example.gallerykeeper.ui.welcome.WelcomeFragment;
 
 public class MainActivity extends AppCompatActivity {
@@ -21,7 +20,7 @@ public class MainActivity extends AppCompatActivity {
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
-        SharedPreferences preferences = getSharedPreferences("AppPrefs", 0);
+        SharedPreferences preferences = getSharedPreferences("AppPrefs", MODE_PRIVATE);
         boolean hasSeenWelcome = preferences.getBoolean("hasSeenWelcome", false);
 
         FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
@@ -31,11 +30,7 @@ public class MainActivity extends AppCompatActivity {
             transaction.replace(R.id.fragment_container, new MonitorPhotoFragment());
         }
         transaction.commit();
-       /**if (savedInstanceState == null) {
-            FragmentTransaction transaction = getSupportFragmentManager().beginTransaction();
-            transaction.replace(R.id.fragment_container, new LoginFragment());
-            transaction.commit();
-        }*/
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);

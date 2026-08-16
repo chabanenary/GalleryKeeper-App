@@ -7,8 +7,6 @@ import androidx.lifecycle.ViewModel;
 import android.content.Context;
 import android.util.Log;
 
-import com.example.gallerykeeper.Utils.Detector;
-
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MonitorPhotoViewModel extends ViewModel {
@@ -41,9 +39,6 @@ public class MonitorPhotoViewModel extends ViewModel {
 
     private Context appContext;
 
-    //For detection or recognition
-    Detector Detector;
-
     public interface MonitoringCallback {
         void onMonitoringTask(Context context);
         void onScanTask(Context context);
@@ -56,13 +51,13 @@ public class MonitorPhotoViewModel extends ViewModel {
 
     // Constructeur public vide (ou pas de constructeur du tout, Java en fournira un par défaut)
     public MonitorPhotoViewModel(Context context) {
-        this.appContext = context;
+        this.appContext = context.getApplicationContext();
     }
 
     // Événement: pour activer/désactiver les boutons en fonction des checkboxes
-    private volatile boolean lastAnyCheckboxSelected = false; // Nouvel état mémorisé des checkboxes
+    private final AtomicBoolean lastAnyCheckboxSelected = new AtomicBoolean(false);
     public void onCheckboxSelectionChanged(boolean anyCheckboxSelected) {
-        lastAnyCheckboxSelected = anyCheckboxSelected;
+        lastAnyCheckboxSelected.set(anyCheckboxSelected);
         Boolean monitoring = isMonitoring.getValue();
         Boolean scanning = isScanning.getValue();
         if (monitoring != null && monitoring) {
@@ -124,8 +119,8 @@ public class MonitorPhotoViewModel extends ViewModel {
         }
         isScanning.setValue(false);
         // Restaurer selon lastAnyCheckboxSelected
-        _isScanButtonEnabled.setValue(lastAnyCheckboxSelected);
-        _isMonitorButtonEnabled.setValue(lastAnyCheckboxSelected);
+        _isScanButtonEnabled.setValue(lastAnyCheckboxSelected.get());
+        _isMonitorButtonEnabled.setValue(lastAnyCheckboxSelected.get());
         _areCheckboxesDisabled.setValue(false); // Réactiver après arrêt
     }
 
@@ -139,8 +134,8 @@ public class MonitorPhotoViewModel extends ViewModel {
         // Mettre à jour le LiveData isScanning en utilisant postValue
         // car cette méthode peut être appelée depuis le thread de Scan.
         isScanning.postValue(false);
-        _isScanButtonEnabled.postValue(lastAnyCheckboxSelected);
-        _isMonitorButtonEnabled.postValue(lastAnyCheckboxSelected);
+        _isScanButtonEnabled.postValue(lastAnyCheckboxSelected.get());
+        _isMonitorButtonEnabled.postValue(lastAnyCheckboxSelected.get());
         _areCheckboxesDisabled.postValue(false);
         Log.d("MonitorPhotoViewModel", "stopScanningInternal: isScanning postValue(false)");
     }
@@ -173,8 +168,8 @@ public class MonitorPhotoViewModel extends ViewModel {
             Log.d("MonitorPhotoViewModel", "Signal d'arrêt envoyé à la tâche de monitoring.");
         }
         isMonitoring.setValue(false);
-        _isMonitorButtonEnabled.setValue(lastAnyCheckboxSelected);
-        _isScanButtonEnabled.setValue(lastAnyCheckboxSelected);
+        _isMonitorButtonEnabled.setValue(lastAnyCheckboxSelected.get());
+        _isScanButtonEnabled.setValue(lastAnyCheckboxSelected.get());
         _areCheckboxesDisabled.setValue(false);
     }
 
@@ -190,8 +185,8 @@ public class MonitorPhotoViewModel extends ViewModel {
         // Mettre à jour le LiveData _isMonitoring en utilisant postValue
         // car cette méthode peut être appelée depuis le thread de monitoring.
         isMonitoring.postValue(false);
-        _isMonitorButtonEnabled.postValue(lastAnyCheckboxSelected);
-        _isScanButtonEnabled.postValue(lastAnyCheckboxSelected);
+        _isMonitorButtonEnabled.postValue(lastAnyCheckboxSelected.get());
+        _isScanButtonEnabled.postValue(lastAnyCheckboxSelected.get());
         _areCheckboxesDisabled.postValue(false);
         Log.d("MonitorPhotoViewModel", "stopMonitoringInternal: isMonitoring postValue(false)");
     }
@@ -221,7 +216,7 @@ public class MonitorPhotoViewModel extends ViewModel {
             } finally {
                 // Ce bloc finally s'exécutera toujours, que la boucle se termine normalement
                 // ou à cause d'une interruption ou d'un break.
-                Log.d("Sacanning Task", "Tâche de scan terminée ou interrompue.");
+                Log.d("Scanning Task", "Tâche de scan terminée ou interrompue.");
                 // Important: Appeler stopMonitoring() depuis le thread principal si elle modifie des LiveData
                 // qui sont observés par l'UI.
                 // Cependant, stopMonitoring() dans votre cas modifie _isMonitoring et isMonitorTaskRunning,
@@ -261,8 +256,8 @@ public class MonitorPhotoViewModel extends ViewModel {
             isMonitorTaskRunning.set(true);
         } else {
             // Monitoring inactif: respecter l'état des checkboxes
-            _isMonitorButtonEnabled.postValue(lastAnyCheckboxSelected);
-            _isScanButtonEnabled.postValue(lastAnyCheckboxSelected);
+            _isMonitorButtonEnabled.postValue(lastAnyCheckboxSelected.get());
+            _isScanButtonEnabled.postValue(lastAnyCheckboxSelected.get());
             _areCheckboxesDisabled.postValue(false);
             isMonitorTaskRunning.set(false);
         }

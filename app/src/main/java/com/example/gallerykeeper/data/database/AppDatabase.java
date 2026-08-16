@@ -32,7 +32,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     context.getApplicationContext(),
                     AppDatabase.class,
                     dbName
-            ).build();
+            ).fallbackToDestructiveMigration().build();
             INSTANCES.put(userEmail, db);
         }
         return db;

@@ -56,8 +56,10 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import androidx.appcompat.app.AlertDialog;
 import androidx.activity.result.ActivityResultLauncher;
@@ -110,6 +112,15 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
     private static final int REQUEST_CODE_WRITE_EXTERNAL_STORAGE_FOR_DELETE = 102; // Code de requête pour WRITE_EXTERNAL_STORAGE
 
     private PhotoPredictor scan_predictor;
+    // Protège scan_predictor : predict() (thread du scan) et close() (onDestroy) ne doivent jamais se chevaucher
+    private final Object scanPredictorLock = new Object();
+    // Passe à true dans onDestroy (retour, rotation...) : le scan en cours s'arrête proprement
+    private final AtomicBoolean isFragmentDestroyed = new AtomicBoolean(false);
+
+    // Android 10 (API 29) uniquement : originaux à supprimer, traités un par un sur le thread principal
+    private final Queue<Uri> androidQDeletionQueue = new ConcurrentLinkedQueue<>();
+    // Android 10 uniquement : URI dont la fenêtre de consentement système est affichée (thread principal)
+    private Uri androidQUriAwaitingConsent;
 
 
     private final AtomicBoolean restoringState = new AtomicBoolean(false);
@@ -528,6 +539,31 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
     public void onResume() {
         super.onResume();
         pullPendingDeletionsFromRepository();
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            // Android 10 : reprendre les suppressions en attente (après une fenêtre de consentement ou un passage en arrière-plan)
+            processNextAndroidQDeletion();
+        }
+        restartMonitoringIfPausedByAndroid();
+    }
+
+    // Android a arrêté la surveillance (limite de 6 h sur Android 15+, ou démarrage refusé en arrière-plan).
+    // L'app est maintenant au premier plan, ce qui remet le compteur d'Android à zéro : on relance.
+    private void restartMonitoringIfPausedByAndroid() {
+        Context context = getContext();
+        if (context == null || viewModel == null) return;
+        if (!MonitorForegroundService.shouldRestartOnOpen(context)) return;
+        if (!hasPermission()) {
+            Log.w(TAG, "Surveillance en pause : relance impossible, permissions manquantes.");
+            return;
+        }
+        try {
+            Log.d(TAG, "Surveillance mise en pause par Android : relance automatique.");
+            startMonitoringService(context.getApplicationContext());
+            viewModel.applyMonitoringStateFromService(true);
+        } catch (IllegalStateException e) {
+            // Démarrage encore refusé : on réessaiera à la prochaine ouverture (le drapeau reste posé)
+            Log.w(TAG, "Relance de la surveillance refusée par Android", e);
+        }
     }
 
     @Override
@@ -537,6 +573,24 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
 
     @Override
     public void onDestroy() {
+        // Signale au scan en cours (thread d'arrière-plan) qu'il doit s'arrêter
+        isFragmentDestroyed.set(true);
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+            // Android 10 : conserver les suppressions non traitées pour la prochaine ouverture (onResume)
+            List<Uri> remaining = new ArrayList<>();
+            if (androidQUriAwaitingConsent != null) {
+                remaining.add(androidQUriAwaitingConsent);
+                androidQUriAwaitingConsent = null;
+            }
+            Uri remainingUri;
+            while ((remainingUri = androidQDeletionQueue.poll()) != null) {
+                remaining.add(remainingUri);
+            }
+            Context context = getContext();
+            if (context != null && !remaining.isEmpty()) {
+                PendingDeletionRepository.prependAll(context.getApplicationContext(), remaining);
+            }
+        }
         if (pendingDeletionReceiver != null) {
             try {
                 Context context = getContext();
@@ -548,9 +602,12 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
             }
             pendingDeletionReceiver = null;
         }
-        if (scan_predictor != null) {
-            scan_predictor.close();
-            scan_predictor = null;
+        // Sous verrou : si predict() est en cours sur le thread du scan, on attend sa fin avant de fermer
+        synchronized (scanPredictorLock) {
+            if (scan_predictor != null) {
+                scan_predictor.close();
+                scan_predictor = null;
+            }
         }
         if (databaseExecutor != null && !databaseExecutor.isShutdown()) {
             databaseExecutor.shutdown();
@@ -1331,6 +1388,11 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         mediaModificationPermissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartIntentSenderForResult(),
                 result -> {
+                    if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
+                        // Android 10 : réponse au consentement d'une seule photo (voir processNextAndroidQDeletion)
+                        onAndroidQConsentResult(result.getResultCode() == Activity.RESULT_OK);
+                        return;
+                    }
                     if (pendingUrisForModification.isEmpty()) {
                         Log.w("MediaModify", "Callback du launcher appelé mais pendingImageUriForModification est null. Opération annulée ou déjà traitée.");
                         return; // Sortir tôt si l'URI en attente est null
@@ -1547,6 +1609,11 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
             ).getIntentSender();
 
             new Handler(Looper.getMainLooper()).post(() -> {
+                if (isFragmentDestroyed.get()) {
+                    // Fragment détruit entre-temps : son launcher n'est plus enregistré, launch() planterait
+                    Log.w("MediaModify", "Fragment détruit : createDeleteRequest non lancé (Android R+)");
+                    return;
+                }
                 if (mediaModificationPermissionLauncher != null) {
                     Log.d("MediaModify", "Lancement de createDeleteRequest pour " + urisToDelete.size() + " URI(s) (Android R+)");
                     mediaModificationPermissionLauncher.launch(new IntentSenderRequest.Builder(sender).build());
@@ -1572,7 +1639,10 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
             // Logique pour Android 10 (API 29)
             // Tente une suppression directe, attrape RecoverableSecurityException
             // handleAndroidQDeleteRequest(context, urisToDelete);
-            handleLegacyDeleteRequest(context, urisToDelete);
+            // handleLegacyDeleteRequest(context, urisToDelete);
+            // Remplacé : sur Android 10, handleLegacyDeleteRequest bouclait sans fin
+            // (RecoverableSecurityException -> false -> même URI retentée indéfiniment).
+            requestAndroidQDeletion(urisToDelete);
 
         } else {
             // Logique pour Android 9 (API 28) et inférieur
@@ -1582,6 +1652,83 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         }
     }
 
+
+
+    // ===== Android 10 (API 29) uniquement =====
+    // Pas de createDeleteRequest sur Android 10 : chaque photo non créée par l'app lève une
+    // RecoverableSecurityException. On demande l'accord pour UNE photo à la fois, puis on
+    // relance nous-mêmes la suppression (sur Android 10 l'accord ne supprime pas la photo).
+    // Chaque URI n'est essayée qu'une fois : pas de boucle infinie.
+
+    // Appelable depuis n'importe quel thread (thread du scan ou thread principal).
+    @RequiresApi(api = Build.VERSION_CODES.Q)
+    private void requestAndroidQDeletion(Queue<Uri> urisToDelete) {
+        if (urisToDelete == null) return;
+        Uri uri;
+        while ((uri = urisToDelete.poll()) != null) {
+            if (!androidQDeletionQueue.contains(uri)) {
+                androidQDeletionQueue.add(uri);
+            }
+        }
+        new Handler(Looper.getMainLooper()).post(this::processNextAndroidQDeletion);
+    }
+
+    // Thread principal uniquement.
+    @RequiresApi(api = Build.VERSION_CODES.Q)
+    private void processNextAndroidQDeletion() {
+        // Fragment détruit ou pas au premier plan : la file est conservée, reprise dans onResume
+        if (isFragmentDestroyed.get() || !isResumed()) return;
+        // Une fenêtre de consentement est déjà affichée : la suite se fera dans onAndroidQConsentResult
+        if (androidQUriAwaitingConsent != null) return;
+
+        Uri uri;
+        while ((uri = androidQDeletionQueue.poll()) != null) {
+            try {
+                int rows = requireContext().getContentResolver().delete(uri, null, null);
+                Log.d("MediaModify", "Android 10 : suppression directe, lignes=" + rows + " pour " + uri);
+            } catch (RecoverableSecurityException rse) {
+                if (mediaModificationPermissionLauncher == null) {
+                    Log.e("MediaModify", "Android 10 : launcher non initialisé, URI ignorée : " + uri);
+                    continue;
+                }
+                try {
+                    IntentSender sender = rse.getUserAction().getActionIntent().getIntentSender();
+                    androidQUriAwaitingConsent = uri;
+                    mediaModificationPermissionLauncher.launch(new IntentSenderRequest.Builder(sender).build());
+                    return; // On attend la réponse de l'utilisateur
+                } catch (Exception e) {
+                    androidQUriAwaitingConsent = null;
+                    Log.e("MediaModify", "Android 10 : échec du lancement de la demande pour " + uri, e);
+                }
+            } catch (Exception e) {
+                Log.e("MediaModify", "Android 10 : échec de la suppression pour " + uri, e);
+            }
+        }
+    }
+
+    // Thread principal uniquement (callback de mediaModificationPermissionLauncher).
+    @RequiresApi(api = Build.VERSION_CODES.Q)
+    private void onAndroidQConsentResult(boolean granted) {
+        Uri uri = androidQUriAwaitingConsent;
+        androidQUriAwaitingConsent = null;
+        Context context = getContext();
+        if (uri != null && context != null) {
+            if (granted) {
+                // Accord donné : on peut maintenant supprimer l'original
+                try {
+                    int rows = context.getContentResolver().delete(uri, null, null);
+                    Log.d("MediaModify", "Android 10 : suppression après accord, lignes=" + rows + " pour " + uri);
+                } catch (Exception e) {
+                    Log.e("MediaModify", "Android 10 : échec de la suppression après accord pour " + uri, e);
+                }
+            } else {
+                Log.w("MediaModify", "Android 10 : suppression refusée par l'utilisateur pour " + uri);
+            }
+        }
+        // Photo suivante (si le fragment n'est pas encore au premier plan, onResume prendra le relais)
+        processNextAndroidQDeletion();
+    }
+    // ===== Fin Android 10 =====
 
 
     @Override
@@ -1606,33 +1753,51 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
     public void onScanTask(Context context) {
         Log.d("MonitorPhotoFragment", "onScanTask appelé avec le contexte.");
 
-        scan_predictor = new PhotoPredictor(context);
+        PhotoPredictor predictor = new PhotoPredictor(context);
+        synchronized (scanPredictorLock) {
+            if (isFragmentDestroyed.get()) {
+                // Fragment détruit pendant la création du predictor (retour, rotation) : pas de scan
+                predictor.close();
+                return;
+            }
+            scan_predictor = predictor;
+        }
 
         // Récupérer les noms de dossiers de tags pour les exclure du scan
-        databaseExecutor.execute(() -> {
-            List<String> excludedFolders = new ArrayList<>();
-            try {
-                if (userEmail != null) {
-                    AppDatabase db = AppDatabase.getInstance(context.getApplicationContext(), userEmail);
-                    List<Tag> tags = db.tagDao().getAllTags();
-                    if (tags != null) {
-                        for (Tag tag : tags) {
-                            if (tag.getFolderName() != null) {
-                                excludedFolders.add(tag.getFolderName());
+        try {
+            databaseExecutor.execute(() -> {
+                List<String> excludedFolders = new ArrayList<>();
+                try {
+                    if (userEmail != null) {
+                        AppDatabase db = AppDatabase.getInstance(context.getApplicationContext(), userEmail);
+                        List<Tag> tags = db.tagDao().getAllTags();
+                        if (tags != null) {
+                            for (Tag tag : tags) {
+                                if (tag.getFolderName() != null) {
+                                    excludedFolders.add(tag.getFolderName());
+                                }
                             }
                         }
                     }
+                } catch (Exception e) {
+                    Log.e(TAG, "Erreur récupération des dossiers à exclure", e);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Erreur récupération des dossiers à exclure", e);
-            }
-            Log.d(TAG, "Dossiers exclus du scan: " + excludedFolders);
-            processAllPhotosInGallery(context, excludedFolders);
-        });
+                Log.d(TAG, "Dossiers exclus du scan: " + excludedFolders);
+                processAllPhotosInGallery(context, excludedFolders);
+            });
+        } catch (RejectedExecutionException e) {
+            // databaseExecutor arrêté par onDestroy entre-temps (onDestroy a aussi fermé le predictor)
+            Log.w(TAG, "Scan non lancé : fragment détruit.", e);
+        }
     }
 
 
     private void processAllPhotosInGallery(Context context, List<String> excludedFolders){
+
+        if (isFragmentDestroyed.get()) {
+            Log.d("Scan Task", "Fragment détruit avant le début du scan : scan annulé.");
+            return;
+        }
 
         if (hasPermission()) {
             List<ImageData> allImages = PhotoFolderManager.loadImagesFromGallery(context, excludedFolders);
@@ -1641,11 +1806,26 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
                 int count = 0;
                 // Process the images
                 for (ImageData image : allImages) {
+                    if (isFragmentDestroyed.get()) {
+                        // Fragment détruit (retour, rotation) : arrêt du scan, on libère les bitmaps restants
+                        Log.d("Scan Task", "Fragment détruit : arrêt du scan.");
+                        for (ImageData remaining : allImages) {
+                            Bitmap remainingBitmap = remaining.getBitmap();
+                            if (remainingBitmap != null && !remainingBitmap.isRecycled()) {
+                                remainingBitmap.recycle();
+                            }
+                        }
+                        break;
+                    }
                     Uri imageUri = image.getUri();
                     Bitmap imageBitmap = image.getBitmap();
                     if (imageUri != null && imageBitmap != null) {
                         Log.d("Scan Task", "Processing image: " + imageUri.toString());
-                        String tagName = scan_predictor.predict(imageBitmap);
+                        String tagName;
+                        synchronized (scanPredictorLock) {
+                            // null si onDestroy a fermé le predictor entre-temps
+                            tagName = (scan_predictor != null) ? scan_predictor.predict(imageBitmap) : null;
+                        }
                         imageBitmap.recycle();
 
                         if (tagName != null) {
@@ -1655,6 +1835,14 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
                             PhotoTaskUtils.moveUriToTagFolder(context, emailUser, imageUri, tagName, result -> {
                                 // Ici, tu peux utiliser le résultat de la copie
                                 if (result.isSuccess()) {
+                                    if (isFragmentDestroyed.get()) {
+                                        // Fragment détruit : ses launchers ne sont plus enregistrés (launch() planterait).
+                                        // L'original est gardé dans le dépôt : sa suppression sera demandée à la
+                                        // prochaine ouverture (onResume), comme pour le service de monitoring.
+                                        PendingDeletionRepository.enqueue(context, imageUri);
+                                        PendingDeletionRepository.broadcastUpdate(context);
+                                        return;
+                                    }
                                     // Succès
                                     // Stocker les infos pour le callback du launcher
                                     pendingUrisForModification.add(imageUri);

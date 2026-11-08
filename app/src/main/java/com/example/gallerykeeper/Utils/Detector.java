@@ -214,8 +214,13 @@ public class Detector {
             }
         }
 
-        if (boundingBoxes.isEmpty()) return null;
-        return applyNMS(boundingBoxes);
+        // Nude prioritaire : récupérer la meilleure boîte "nude", même si le choix d'une seule classe
+        // par ancre ou le NMS (qui ignore les classes) l'ont écartée. Les autres boîtes ne changent pas.
+        BoundingBox bestNude = NudeBoxFinder.findBestNudeBox(
+                array, numChannel, numElements, labels.indexOf("nude"), CONFIDENCE_THRESHOLD);
+
+        if (boundingBoxes.isEmpty() && bestNude == null) return null;
+        return NudeBoxFinder.addIfMissing(applyNMS(boundingBoxes), bestNude);
     }
 
     private List<BoundingBox> applyNMS(List<BoundingBox> boxes) {

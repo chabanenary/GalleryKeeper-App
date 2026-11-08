@@ -107,4 +107,9 @@
     <string name="toast_rename_success_after_permission">Folder renamed successfully (after permission).</string>
     <string name="toast_some_files_not_moved_after_permission">Some files could not be moved (after permission).</string>
     <string name="toast_permission_denied_rename_folder">Permission denied to rename the folder.</string>
+
+    <!-- Monitoring paused by Android (6-hour limit on Android 15+, or start refused in background) -->
+    <string name="monitor_paused_channel_name">Monitoring alerts</string>
+    <string name="monitor_paused_title">Monitoring paused</string>
+    <string name="monitor_paused_text">Android paused gallery monitoring. Tap to open GalleryKeeper: monitoring will restart automatically.</string>
 </resources>

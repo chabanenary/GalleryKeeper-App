@@ -106,4 +106,9 @@
     <string name="toast_rename_success_after_permission">Dossier renommé avec succès (après permission).</string>
     <string name="toast_some_files_not_moved_after_permission">Certains fichiers n\'ont pas pu être déplacés (après permission).</string>
     <string name="toast_permission_denied_rename_folder">Permission refusée pour renommer le dossier.</string>
+
+    <!-- Surveillance mise en pause par Android (limite de 6 h sur Android 15+, ou démarrage refusé en arrière-plan) -->
+    <string name="monitor_paused_channel_name">Alertes de surveillance</string>
+    <string name="monitor_paused_title">Surveillance en pause</string>
+    <string name="monitor_paused_text">Android a mis la surveillance de la galerie en pause. Touchez pour ouvrir GalleryKeeper : la surveillance redémarrera automatiquement.</string>
 </resources>

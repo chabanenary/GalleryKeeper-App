@@ -68,7 +68,7 @@ dependencies {
     // kapt("androidx.room:room-compiler:$room_version") // For Kotlin users
 
     // Optional: Room tests
-    testImplementation("androidx.room:room-testing:$2.6.1")
+    testImplementation("androidx.room:room-testing:2.7.2")
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

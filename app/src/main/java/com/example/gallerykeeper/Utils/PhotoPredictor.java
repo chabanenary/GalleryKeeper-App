@@ -14,37 +14,61 @@ public class PhotoPredictor {
     private static final String TAG = "PhotoPredictor";
     private static final String MODEL_FILE = "model_KIP.tflite";
     private static final String LABELS_FILE = "labels_KIP.txt";
+    // Une seule copie à la fois : le scan et le service peuvent créer un PhotoPredictor en même temps
+    private static final Object ASSET_COPY_LOCK = new Object();
     private Detector detector;
     private final Context context;
 
     public PhotoPredictor(Context context) {
         this.context = context.getApplicationContext();
         copyAssetsIfNeeded();
-        detector = new Detector(this.context, getModelPath(), getLabelsPath());
+        try {
+            detector = new Detector(this.context, getModelPath(), getLabelsPath());
+        } catch (RuntimeException e) {
+            // Modèle copié illisible (ex. copie interrompue par une ancienne version de l'app) :
+            // on supprime les copies, on recopie depuis les assets et on réessaie une seule fois.
+            // Si ça échoue encore, l'exception remonte comme avant cette correction.
+            Log.e(TAG, "Chargement du modèle impossible, nouvelle copie depuis les assets", e);
+            recopyAssets();
+            detector = new Detector(this.context, getModelPath(), getLabelsPath());
+        }
     }
 
     private void copyAssetsIfNeeded() {
-        File modelFile = new File(context.getFilesDir(), MODEL_FILE);
-        File labelsFile = new File(context.getFilesDir(), LABELS_FILE);
+        synchronized (ASSET_COPY_LOCK) {
+            File modelFile = new File(context.getFilesDir(), MODEL_FILE);
+            File labelsFile = new File(context.getFilesDir(), LABELS_FILE);
 
-        if (!modelFile.exists()) {
-            Log.d(TAG, "Copying model to " + modelFile.getAbsolutePath());
-            copyAssetToFile(MODEL_FILE, modelFile);
+            if (!modelFile.exists()) {
+                Log.d(TAG, "Copying model to " + modelFile.getAbsolutePath());
+                copyAssetToFile(MODEL_FILE, modelFile);
+            }
+            if (!labelsFile.exists()) {
+                Log.d(TAG, "Copying labels to " + labelsFile.getAbsolutePath());
+                copyAssetToFile(LABELS_FILE, labelsFile);
+            }
         }
-        if (!labelsFile.exists()) {
-            Log.d(TAG, "Copying labels to " + labelsFile.getAbsolutePath());
-            copyAssetToFile(LABELS_FILE, labelsFile);
+    }
+
+    // Supprime les copies (modèle + labels) puis les recopie depuis les assets
+    private void recopyAssets() {
+        synchronized (ASSET_COPY_LOCK) {
+            File modelFile = new File(context.getFilesDir(), MODEL_FILE);
+            File labelsFile = new File(context.getFilesDir(), LABELS_FILE);
+            if (modelFile.exists() && !modelFile.delete()) {
+                Log.w(TAG, "Suppression impossible de " + modelFile.getAbsolutePath());
+            }
+            if (labelsFile.exists() && !labelsFile.delete()) {
+                Log.w(TAG, "Suppression impossible de " + labelsFile.getAbsolutePath());
+            }
+            copyAssetsIfNeeded();
         }
     }
 
     private void copyAssetToFile(String assetName, File outFile) {
-        try (InputStream in = context.getAssets().open(assetName);
-             FileOutputStream out = new FileOutputStream(outFile)) {
-            byte[] buffer = new byte[4096];
-            int read;
-            while ((read = in.read(buffer)) != -1) {
-                out.write(buffer, 0, read);
-            }
+        // Copie atomique : jamais de fichier final tronqué, même si l'app est tuée pendant la copie
+        try (InputStream in = context.getAssets().open(assetName)) {
+            AtomicFileCopy.copy(in, outFile);
         } catch (IOException e) {
             Log.e(TAG, "Erreur lors de la copie de l'asset " + assetName, e);
         }

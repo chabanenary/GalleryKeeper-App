@@ -9,9 +9,12 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 
 public class PhotoPredictor {
     private static final String TAG = "PhotoPredictor";
+    // Logs de diagnostic des scores (même tag que Detector) : filtre Logcat "tag:DiagScores"
+    private static final String DIAG_TAG = "DiagScores";
     private static final String MODEL_FILE = "model_KIP.tflite";
     private static final String LABELS_FILE = "labels_KIP.txt";
     // Une seule copie à la fois : le scan et le service peuvent créer un PhotoPredictor en même temps
@@ -32,6 +35,8 @@ public class PhotoPredictor {
             recopyAssets();
             detector = new Detector(this.context, getModelPath(), getLabelsPath());
         }
+        Log.d(DIAG_TAG, String.format(Locale.US, "Seuils de classement : nude > %.2f, child > %.2f, autres > %.2f",
+                TagClassifier.NUDE_THRESHOLD, TagClassifier.CHILD_THRESHOLD, TagClassifier.OTHER_THRESHOLD));
     }
 
     private void copyAssetsIfNeeded() {
@@ -89,6 +94,7 @@ public class PhotoPredictor {
         }
 
         List<BoundingBox> boundingBoxes = detector.detect(bitmap);
+        logDetections(boundingBoxes);
         if (boundingBoxes == null || boundingBoxes.isEmpty()) {
             Log.d(TAG, "No object detected in the image");
             return null;
@@ -97,6 +103,19 @@ public class PhotoPredictor {
         String tagName = TagClassifier.decideTagName(boundingBoxes);
         Log.d(TAG, "Detected Tag Name: " + tagName);
         return tagName;
+    }
+
+    // Diagnostic : boîtes retenues après NMS (celles qu'examine TagClassifier), avec leur score
+    private static void logDetections(List<BoundingBox> boxes) {
+        if (boxes == null || boxes.isEmpty()) {
+            Log.d(DIAG_TAG, "Boîtes retenues : aucune");
+            return;
+        }
+        StringBuilder sb = new StringBuilder("Boîtes retenues :");
+        for (BoundingBox box : boxes) {
+            sb.append(' ').append(box.clsName).append('=').append(String.format(Locale.US, "%.2f", box.cnf));
+        }
+        Log.d(DIAG_TAG, sb.toString());
     }
 
     public void close() {

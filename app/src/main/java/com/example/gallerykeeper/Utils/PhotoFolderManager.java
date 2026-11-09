@@ -513,6 +513,50 @@ public class PhotoFolderManager {
         return loadImagesFromGallery(context, null);
     }
 
+    /**
+     * Liste les images de la galerie (adresses seulement, aucune image décodée) en excluant celles
+     * situées dans les dossiers de tags. Même requête que loadImagesFromGallery : le scan décode
+     * ensuite les photos une par une, ce qui évite de saturer la mémoire sur une grande galerie.
+     * @param excludedFolderNames Noms de dossiers à exclure. Si null ou vide, tout est listé.
+     */
+    public static List<Uri> loadImageUrisFromGallery(Context context, List<String> excludedFolderNames) {
+        List<Uri> uris = new ArrayList<>();
+
+        Uri externalUri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+
+        String selection = null;
+        String[] selectionArgs = null;
+
+        if (excludedFolderNames != null && !excludedFolderNames.isEmpty()
+                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            StringBuilder sb = new StringBuilder();
+            List<String> args = new ArrayList<>();
+            for (int i = 0; i < excludedFolderNames.size(); i++) {
+                if (i > 0) sb.append(" AND ");
+                sb.append(MediaStore.Images.Media.RELATIVE_PATH + " NOT LIKE ?");
+                args.add("%" + excludedFolderNames.get(i) + "%");
+            }
+            selection = sb.toString();
+            selectionArgs = args.toArray(new String[0]);
+        }
+
+        String[] projection = {MediaStore.Images.Media._ID};
+
+        try (Cursor cursor = context.getContentResolver().query(
+                externalUri, projection, selection, selectionArgs, null)) {
+            if (cursor != null) {
+                int idColumn = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID);
+                while (cursor.moveToNext()) {
+                    uris.add(ContentUris.withAppendedId(externalUri, cursor.getLong(idColumn)));
+                }
+            }
+        } catch (Exception e) {
+            Log.e("ImageLoader", "Erreur requête MediaStore: " + e.getMessage());
+        }
+
+        return uris;
+    }
+
     public static String getFileNameFromUri(Context context, Uri uri) {
         if (context == null || uri == null) {
             return null;

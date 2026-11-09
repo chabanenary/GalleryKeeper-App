@@ -27,9 +27,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 public class Detector {
     private static final String TAG = "Detector";
+    // Logs de diagnostic des scores (même tag que PhotoPredictor) : filtre Logcat "tag:DiagScores"
+    private static final String DIAG_TAG = "DiagScores";
 
     private Interpreter interpreter;
     private GpuDelegate gpuDelegate;
@@ -155,7 +158,8 @@ public class Detector {
 
         long inferenceTime = SystemClock.uptimeMillis();
 
-        Bitmap resizedBitmap = Bitmap.createScaledBitmap(frame, tensorWidth, tensorHeight, false);
+        // Réduction lissée (bilinéaire) : plus proche des images d'entraînement, redimensionnées avec lissage
+        Bitmap resizedBitmap = Bitmap.createScaledBitmap(frame, tensorWidth, tensorHeight, true);
         try {
             TensorImage tensorImage = new TensorImage(INPUT_IMAGE_TYPE);
             tensorImage.load(resizedBitmap);
@@ -178,6 +182,7 @@ public class Detector {
 
     private List<BoundingBox> bestBox(float[] array) {
         List<BoundingBox> boundingBoxes = new ArrayList<>();
+        logMaxScorePerClass(array);
 
         for (int c = 0; c < numElements; c++) {
             float maxConf = CONFIDENCE_THRESHOLD;
@@ -221,6 +226,25 @@ public class Detector {
 
         if (boundingBoxes.isEmpty() && bestNude == null) return null;
         return NudeBoxFinder.addIfMissing(applyNMS(boundingBoxes), bestNude);
+    }
+
+    // Diagnostic : score maximal de chaque classe sur toute l'image (sortie brute du modèle), avant le
+    // choix d'une seule classe par ancre et le NMS. Montre par ex. un "child" à 0.55 masqué par un "adult".
+    private void logMaxScorePerClass(float[] array) {
+        int numClasses = Math.min(numChannel - 4, labels.size());
+        if (numClasses <= 0) return;
+        StringBuilder sb = new StringBuilder("Score max par classe :");
+        for (int k = 0; k < numClasses; k++) {
+            float max = 0f;
+            int offset = numElements * (4 + k);
+            for (int c = 0; c < numElements; c++) {
+                if (array[offset + c] > max) {
+                    max = array[offset + c];
+                }
+            }
+            sb.append(' ').append(labels.get(k)).append('=').append(String.format(Locale.US, "%.2f", max));
+        }
+        Log.d(DIAG_TAG, sb.toString());
     }
 
     private List<BoundingBox> applyNMS(List<BoundingBox> boxes) {

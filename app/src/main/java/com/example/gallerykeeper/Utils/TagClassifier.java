@@ -9,14 +9,18 @@ import java.util.List;
  * - si une boîte "nude" a cnf > 0.7 => "Nude", prioritaire sur tout le reste
  *   (quel que soit l'ordre des boîtes et la confiance des autres classes)
  * - une boîte "nude" à 0.7 ou moins est ignorée
- * - sinon si on voit "child" avec cnf > 0.4 => "Children" (prioritaire)
- * - sinon on prend la box de plus forte confiance avec cnf > 0.5
+ * - sinon si on voit "child" avec cnf > 0.6 => "Children" (prioritaire)
+ * - sinon on prend la box de plus forte confiance avec cnf > 0.6
  * - mapping: creditcard -> "Credit Card", id -> "Identity Document"
  */
 public final class TagClassifier {
 
     // Seuil de nudité : au-delà, la photo est classée "Nude"
     public static final float NUDE_THRESHOLD = 0.7f;
+    // Seuil enfant : au-delà, la photo est classée "Children" (prioritaire sur les autres classes)
+    public static final float CHILD_THRESHOLD = 0.6f;
+    // Seuil des autres classes (carte bancaire, pièce d'identité) : la boîte la plus sûre au-delà l'emporte
+    public static final float OTHER_THRESHOLD = 0.6f;
 
     private TagClassifier() {
     }
@@ -42,11 +46,11 @@ public final class TagClassifier {
                 continue;
             }
 
-            if ("child".equals(box.clsName) && box.cnf > 0.4f) {
+            if ("child".equals(box.clsName) && box.cnf > CHILD_THRESHOLD) {
                 highestConfidenceBox = box;
                 break;
             } else {
-                if (box.cnf > highestConfidence && box.cnf > 0.5f) {
+                if (box.cnf > highestConfidence && box.cnf > OTHER_THRESHOLD) {
                     highestConfidence = box.cnf;
                     highestConfidenceBox = box;
                 }

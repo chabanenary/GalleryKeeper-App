@@ -35,6 +35,7 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 
 import com.example.gallerykeeper.R;
+import com.example.gallerykeeper.Utils.BitmapLoader;
 import com.example.gallerykeeper.Utils.ImageData;
 import com.example.gallerykeeper.Utils.PhotoFolderManager;
 import com.example.gallerykeeper.Utils.PhotoPredictor;
@@ -47,6 +48,7 @@ import com.google.android.material.snackbar.Snackbar;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -110,6 +112,8 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
     private Queue<Uri> pendingUrisForModification = new LinkedList<>();
     private BroadcastReceiver pendingDeletionReceiver;
     private static final int REQUEST_CODE_WRITE_EXTERNAL_STORAGE_FOR_DELETE = 102; // Code de requête pour WRITE_EXTERNAL_STORAGE
+    // Scan : photos décodées en taille réduite, grand côté >= 1280 px (2x l'entrée 640x640 du modèle)
+    private static final int SCAN_DECODE_TARGET_LONG_SIDE = 1280;
 
     private PhotoPredictor scan_predictor;
     // Protège scan_predictor : predict() (thread du scan) et close() (onDestroy) ne doivent jamais se chevaucher
@@ -1800,27 +1804,35 @@ public class MonitorPhotoFragment extends Fragment implements MonitorPhotoViewMo
         }
 
         if (hasPermission()) {
-            List<ImageData> allImages = PhotoFolderManager.loadImagesFromGallery(context, excludedFolders);
+            // Grande galerie : on ne liste que les adresses des photos (aucune image en mémoire),
+            // puis chaque photo est décodée en taille réduite, analysée et libérée avant la suivante.
+            List<Uri> imageUris = PhotoFolderManager.loadImageUrisFromGallery(context, excludedFolders);
 
-            if (!allImages.isEmpty()) {
+            if (!imageUris.isEmpty()) {
                 int count = 0;
+                Log.d("Scan Task", imageUris.size() + " image(s) à analyser.");
                 // Process the images
-                for (ImageData image : allImages) {
+                for (Uri imageUri : imageUris) {
+                    count++;
                     if (isFragmentDestroyed.get()) {
-                        // Fragment détruit (retour, rotation) : arrêt du scan, on libère les bitmaps restants
+                        // Fragment détruit (retour, rotation) : arrêt du scan
                         Log.d("Scan Task", "Fragment détruit : arrêt du scan.");
-                        for (ImageData remaining : allImages) {
-                            Bitmap remainingBitmap = remaining.getBitmap();
-                            if (remainingBitmap != null && !remainingBitmap.isRecycled()) {
-                                remainingBitmap.recycle();
-                            }
-                        }
                         break;
                     }
-                    Uri imageUri = image.getUri();
-                    Bitmap imageBitmap = image.getBitmap();
+                    Bitmap imageBitmap;
+                    try {
+                        imageBitmap = BitmapLoader.decodeSampled(
+                                context.getContentResolver(), imageUri, SCAN_DECODE_TARGET_LONG_SIDE);
+                    } catch (IOException | RuntimeException e) {
+                        // Photo supprimée entre-temps, fichier illisible... : on passe à la suivante
+                        Log.e("Scan Task", "Image ignorée (lecture impossible): " + imageUri, e);
+                        continue;
+                    } catch (OutOfMemoryError oom) {
+                        Log.e("Scan Task", "Image ignorée (mémoire insuffisante): " + imageUri, oom);
+                        continue;
+                    }
                     if (imageUri != null && imageBitmap != null) {
-                        Log.d("Scan Task", "Processing image: " + imageUri.toString());
+                        Log.d("Scan Task", "Processing image " + count + "/" + imageUris.size() + ": " + imageUri);
                         String tagName;
                         synchronized (scanPredictorLock) {
                             // null si onDestroy a fermé le predictor entre-temps

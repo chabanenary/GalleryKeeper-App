@@ -6,19 +6,23 @@ import java.util.List;
  * Logique métier (testable en JVM) : détermine le nom du tag à partir des détections.
  *
  * Règles utilisées par PhotoPredictor.predict() (donc par le scan et par le monitoring) :
- * - si une boîte "nude" a cnf > 0.7 => "Nude", prioritaire sur tout le reste
+ * - si une boîte "nude" a cnf > 0.5 => "Nude", prioritaire sur tout le reste
  *   (quel que soit l'ordre des boîtes et la confiance des autres classes)
- * - une boîte "nude" à 0.7 ou moins est ignorée
- * - sinon si on voit "child" avec cnf > 0.6 => "Children" (prioritaire)
+ * - une boîte "nude" à 0.5 ou moins est ignorée
+ * - sinon si on voit "child" avec cnf > 0.5 => "Children" (prioritaire)
  * - sinon on prend la box de plus forte confiance avec cnf > 0.6
  * - mapping: creditcard -> "Credit Card", id -> "Identity Document"
+ *
+ * Seuils nude et child abaissés à 0.5 en nov. 2026 pour le modèle model_KIP_v2 (dataset all3), qui donne
+ * des scores plus bas que l'ancien : sur la validation all3, nude trouvé 43 % au lieu de 14 % sans fausse
+ * alerte, child 78 % au lieu de 68 % avec la même précision.
  */
 public final class TagClassifier {
 
     // Seuil de nudité : au-delà, la photo est classée "Nude"
-    public static final float NUDE_THRESHOLD = 0.7f;
+    public static final float NUDE_THRESHOLD = 0.5f;
     // Seuil enfant : au-delà, la photo est classée "Children" (prioritaire sur les autres classes)
-    public static final float CHILD_THRESHOLD = 0.6f;
+    public static final float CHILD_THRESHOLD = 0.5f;
     // Seuil des autres classes (carte bancaire, pièce d'identité) : la boîte la plus sûre au-delà l'emporte
     public static final float OTHER_THRESHOLD = 0.6f;
 

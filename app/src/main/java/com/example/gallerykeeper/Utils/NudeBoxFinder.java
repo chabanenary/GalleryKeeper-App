@@ -42,21 +42,12 @@ public final class NudeBoxFinder {
                 continue;
             }
 
-            float cx = output[c];
-            float cy = output[c + numElements];
-            float w = output[c + numElements * 2];
-            float h = output[c + numElements * 3];
-            float x1 = cx - (w / 2F);
-            float y1 = cy - (h / 2F);
-            float x2 = cx + (w / 2F);
-            float y2 = cy + (h / 2F);
-            // Mêmes limites que Detector.bestBox()
-            if (x1 < 0F || x1 > 1F) continue;
-            if (y1 < 0F || y1 > 1F) continue;
-            if (x2 < 0F || x2 > 1F) continue;
-            if (y2 < 0F || y2 > 1F) continue;
-
-            best = new BoundingBox(x1, y1, x2, y2, cx, cy, w, h, score, nudeClassIndex, "nude");
+            // Même recadrage que Detector.bestBox()
+            BoundingBox box = BoxGeometry.clampedBox(output[c], output[c + numElements],
+                    output[c + numElements * 2], output[c + numElements * 3], score, nudeClassIndex, "nude");
+            if (box != null) {
+                best = box;
+            }
         }
         return best;
     }

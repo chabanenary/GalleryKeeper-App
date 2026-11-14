@@ -15,7 +15,12 @@ public class PhotoPredictor {
     private static final String TAG = "PhotoPredictor";
     // Logs de diagnostic des scores (même tag que Detector) : filtre Logcat "tag:DiagScores"
     private static final String DIAG_TAG = "DiagScores";
-    private static final String MODEL_FILE = "model_KIP.tflite";
+    // Modèle entraîné sur le dataset all3 (nov. 2026). Nouveau nom obligatoire : le modèle n'est copié
+    // dans filesDir que s'il n'y est pas, un téléphone garderait sinon l'ancien model_KIP.tflite.
+    // L'ancien modèle (mars 2025) est archivé hors de l'app, dans le dossier d'entraînement YOLO :
+    // MODELS/ONCOLAB/model_KIP.tflite. Pour revenir en arrière : le recopier dans les assets et
+    // remettre son nom ici.
+    private static final String MODEL_FILE = "model_KIP_v2.tflite";
     private static final String LABELS_FILE = "labels_KIP.txt";
     // Une seule copie à la fois : le scan et le service peuvent créer un PhotoPredictor en même temps
     private static final Object ASSET_COPY_LOCK = new Object();

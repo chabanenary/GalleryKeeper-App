@@ -200,22 +200,14 @@ public class Detector {
 
             if (maxConf > CONFIDENCE_THRESHOLD && maxIdx >= 0 && maxIdx < labels.size()) {
                 String clsName = labels.get(maxIdx);
-                float cx = array[c];
-                float cy = array[c + numElements];
-                float w = array[c + numElements * 2];
-                float h = array[c + numElements * 3];
-                float x1 = cx - (w / 2F);
-                float y1 = cy - (h / 2F);
-                float x2 = cx + (w / 2F);
-                float y2 = cy + (h / 2F);
-                if (x1 < 0F || x1 > 1F) continue;
-                if (y1 < 0F || y1 > 1F) continue;
-                if (x2 < 0F || x2 > 1F) continue;
-                if (y2 < 0F || y2 > 1F) continue;
-
-                boundingBoxes.add(
-                        new BoundingBox(x1, y1, x2, y2, cx, cy, w, h, maxConf, maxIdx, clsName)
-                );
+                // Bords ramenés dans l'image : une boîte qui dépasse un peu (document qui remplit la
+                // photo) n'est plus rejetée
+                BoundingBox box = BoxGeometry.clampedBox(
+                        array[c], array[c + numElements], array[c + numElements * 2], array[c + numElements * 3],
+                        maxConf, maxIdx, clsName);
+                if (box != null) {
+                    boundingBoxes.add(box);
+                }
             }
         }
 
